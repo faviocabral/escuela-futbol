@@ -1,0 +1,49 @@
+import React from 'react';
+
+export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSidebar }) => {
+  
+  // Nomenclatura de pestañas internas
+  const menuItems = [
+    { id: 'clientes', label: 'Clientes', icon: 'bi-people' },
+    { id: 'facturas', label: 'Cargar Facturas', icon: 'bi-file-earmark-arrow-up' }
+  ];
+
+  return (
+    <aside 
+      className="app-sidebar bg-dark shadow" 
+      data-bs-theme="dark"
+      style={{ 
+        position: 'fixed', top: 0, bottom: 0, left: 0,
+        width: isSidebarOpen ? '250px' : '0px', 
+        overflowX: 'hidden', transition: 'width 0.3s ease-in-out', zIndex: 1038 
+      }}
+    >
+      <div className="sidebar-brand border-bottom border-secondary py-3 text-center text-white">
+        <span className="brand-text fw-bold" 
+          onClick={onToggleSidebar}>
+          Lector Facturas 
+        </span>
+      </div>
+      <div className="sidebar-wrapper p-3" style={{ width: '250px' }}>
+        <nav className="mt-2">
+          <ul className="nav nav-pills nav-sidebar flex-column list-unstyled">
+            {menuItems.map((item) => {
+              const isActive = currentView === item.id;
+              return (
+                <li key={item.id} className="nav-item mb-2">
+                  <button
+                    onClick={() => onViewChange(item.id)}
+                    className={`nav-link text-start w-100 border-0 text-white d-flex align-items-center py-2 px-3 ${isActive ? 'active bg-primary fw-bold' : 'bg-transparent opacity-75'}`}
+                  >
+                    <i className={`bi ${item.icon} me-3 fs-5`}></i>
+                    <span>{item.label}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+      </div>
+    </aside>
+  );
+};

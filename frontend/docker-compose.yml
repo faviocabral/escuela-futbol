@@ -1,0 +1,12 @@
+
+services:
+  react-app:
+    build: .
+    container_name: lector-facturas
+    ports:
+      - "5173:5173" # Mapea el puerto 3000 local al 5173 del contenedor
+    volumes:
+      - .:/app
+      - /app/node_modules # Evita que el node_modules local sobrescriba al del contenedor
+    environment:
+      - WATCHPACK_POLLING=true # Obliga a React/Vite a detectar cambios de código en entornos montados

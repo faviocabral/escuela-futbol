@@ -1,0 +1,19 @@
+# Dependencias
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variables de entorno
+.env
+
+# Archivos de sistema operativo
+.DS_Store
+Thumbs.db
+
+# Subidas de imágenes y archivos estáticos (modifica la ruta según tu proyecto)
+public
+uploads/
+temp/
+datos_excel/
