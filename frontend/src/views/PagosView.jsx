@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -55,6 +57,8 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
       (filtroAnio === '' || p.anio === Number(filtroAnio))
     )
     .sort((a, b) => b.anio - a.anio || b.mes - a.mes || b.fechaPago.localeCompare(a.fechaPago));
+
+  const pag = usePaginacion(filtrados.length);
 
   // Pendientes del mes/año filtrado (o el actual si no hay filtro)
   const mesRef = filtroMes === '' ? hoy.getMonth() + 1 : Number(filtroMes);
@@ -169,7 +173,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Jugador</th>
@@ -188,7 +192,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
                       </td>
                     </tr>
                   ) : (
-                    filtrados.map((p) => (
+                    pag.cortar(filtrados).map((p) => (
                       <tr key={p.id}>
                         <td className="px-3 fw-semibold">{jugadorNombre(p.jugadorId)}</td>
                         <td><span className="badge bg-primary-subtle text-primary">{MESES[p.mes - 1]} {p.anio}</span></td>
@@ -214,6 +218,14 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
                 )}
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={filtrados.length}
+            />
           </div>
         </div>
       </div>

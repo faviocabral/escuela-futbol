@@ -87,8 +87,14 @@ export default function Login({ onLogin }) {
                         </form>
 
                         <div className="mt-4 text-center">
-                            <p className="mb-0 small text-muted">
+                            <p className="mb-1 small text-muted">
                                 Demo: <code>admin / admin123</code>
+                            </p>
+                            <p className="mb-0 small">
+                                <a href="/asistencia" className="text-decoration-none text-success">
+                                    <i className="bi bi-check2-square me-1"></i>
+                                    Soy padre/madre — registrar asistencia
+                                </a>
                             </p>
                         </div>
 

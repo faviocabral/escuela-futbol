@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const FORM_VACIO = { nombre: '', fecha: '', lugar: '', categoriaId: '' };
 
@@ -73,6 +75,8 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
       (filtroCategoria === '' || t.categoriaId === Number(filtroCategoria))
     )
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
+
+  const pag = usePaginacion(filtrados.length);
 
   const jugadoresConvocables = torneoConvocatoria
     ? jugadores.filter((j) => j.categoriaId === torneoConvocatoria.categoriaId && j.activo)
@@ -198,7 +202,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Fecha</th>
@@ -217,7 +221,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                       </td>
                     </tr>
                   ) : (
-                    filtrados.map((t) => {
+                    pag.cortar(filtrados).map((t) => {
                       const pasado = t.fecha < new Date().toISOString().slice(0, 10);
                       return (
                         <tr key={t.id}>
@@ -250,6 +254,14 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                 </tbody>
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={filtrados.length}
+            />
           </div>
         </div>
       </div>

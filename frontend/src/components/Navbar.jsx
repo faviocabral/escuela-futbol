@@ -10,7 +10,7 @@ export const Navbar = ({ onToggleSidebar, usuario, onLogout }) => {
     .toUpperCase();
 
   return (
-    <nav className="navbar navbar-expand bg-white border-bottom px-4 w-100" style={{ height: '56px' }}>
+    <nav className="navbar navbar-expand bg-white border-bottom px-4 w-100 sticky-top shadow-sm" style={{ height: '56px' }}>
       <div className="container-fluid p-0 d-flex align-items-center">
 
         <div className="d-flex align-items-center">

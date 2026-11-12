@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const formatearFecha = (iso) => {
   if (!iso) return '-';
@@ -80,6 +82,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
   };
 
   const historial = [...asistencias].sort((a, b) => b.fecha.localeCompare(a.fecha));
+  const pag = usePaginacion(historial.length);
 
   return (
     <>
@@ -147,7 +150,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
               {jugadoresLista.length > 0 && Object.keys(marcas).length > 0 && (
                 <div className="mt-4">
                   <div className="table-responsive">
-                    <table className="table table-hover align-middle m-0">
+                    <table className="table table-sm table-hover align-middle m-0">
                       <thead className="table-light">
                         <tr>
                           <th className="px-3">Jugador</th>
@@ -197,7 +200,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
               <span className="badge bg-secondary ms-2">{historial.length}</span>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Fecha</th>
@@ -215,7 +218,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                       </td>
                     </tr>
                   ) : (
-                    historial.map((a) => {
+                    pag.cortar(historial).map((a) => {
                       const presentes = a.registros.filter((r) => r.presente).length;
                       const torneo = a.torneoId ? torneos.find((t) => t.id === a.torneoId) : null;
                       return (
@@ -242,6 +245,14 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                 </tbody>
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={historial.length}
+            />
           </div>
         </div>
       </div>

@@ -7,15 +7,7 @@ import { CategoriasView } from './CategoriasView';
 import { TorneosView } from './TorneosView';
 import { AsistenciaView } from './AsistenciaView';
 import { PagosView } from './PagosView';
-import {
-  categoriasMock,
-  entrenadoresMock,
-  jugadoresMock,
-  torneosMock,
-  convocatoriasMock,
-  asistenciasMock,
-  pagosMock,
-} from '../mockData';
+import { useStore, setterFor } from '../store';
 
 const TITULOS = {
   jugadores: 'Jugadores',
@@ -30,14 +22,21 @@ export default function Dashboard({ usuario, onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentView, setCurrentView] = useState('jugadores');
 
-  // Estado global mock — luego se reemplaza por llamadas a la API
-  const [jugadores, setJugadores] = useState(jugadoresMock);
-  const [entrenadores, setEntrenadores] = useState(entrenadoresMock);
-  const [categorias, setCategorias] = useState(categoriasMock);
-  const [torneos, setTorneos] = useState(torneosMock);
-  const [convocatorias, setConvocatorias] = useState(convocatoriasMock);
-  const [asistencias, setAsistencias] = useState(asistenciasMock);
-  const [pagos, setPagos] = useState(pagosMock);
+  // Estado global mock compartido (store.js) — luego se reemplaza por la API
+  const jugadores = useStore((s) => s.jugadores);
+  const setJugadores = setterFor('jugadores');
+  const entrenadores = useStore((s) => s.entrenadores);
+  const setEntrenadores = setterFor('entrenadores');
+  const categorias = useStore((s) => s.categorias);
+  const setCategorias = setterFor('categorias');
+  const torneos = useStore((s) => s.torneos);
+  const setTorneos = setterFor('torneos');
+  const convocatorias = useStore((s) => s.convocatorias);
+  const setConvocatorias = setterFor('convocatorias');
+  const asistencias = useStore((s) => s.asistencias);
+  const setAsistencias = setterFor('asistencias');
+  const pagos = useStore((s) => s.pagos);
+  const setPagos = setterFor('pagos');
 
   const nextId = (lista) => (lista.length ? Math.max(...lista.map((i) => i.id)) + 1 : 1);
 

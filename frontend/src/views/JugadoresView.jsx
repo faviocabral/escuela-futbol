@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { Avatar } from '../components/Avatar';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const FORM_VACIO = {
   nombre: '', apellido: '', documento: '', fechaNacimiento: '',
-  categoriaId: '', tutor: '', telefonoTutor: '', activo: true,
+  categoriaId: '', tutor: '', telefonoTutor: '', activo: true, foto: null,
 };
 
 const calcularEdad = (fechaNacimiento) => {
@@ -27,6 +30,14 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleFoto = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setForm((prev) => ({ ...prev, foto: ev.target.result }));
+    reader.readAsDataURL(file);
   };
 
   const handleSubmit = (e) => {
@@ -64,6 +75,8 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
     );
   });
 
+  const pag = usePaginacion(filtrados.length);
+
   return (
     <>
       <div className="row g-4 mb-3">
@@ -76,6 +89,30 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
             <div className="card-body">
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
+                  {/* Foto del jugador */}
+                  <div className="col-12 d-flex align-items-center gap-3 mb-1">
+                    <Avatar jugador={form} size={72} />
+                    <div className="flex-grow-1">
+                      <label className="form-label small fw-semibold text-secondary mb-1">Foto del jugador</label>
+                      <div className="d-flex gap-2 align-items-center">
+                        <input
+                          type="file"
+                          className="form-control form-control-sm"
+                          accept="image/*"
+                          onChange={handleFoto}
+                        />
+                        {form.foto && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger text-nowrap"
+                            onClick={() => setForm((prev) => ({ ...prev, foto: null }))}
+                          >
+                            <i className="bi bi-x-lg me-1"></i> Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   <div className="col-12 col-md-3">
                     <label className="form-label small fw-semibold text-secondary">Nombre *</label>
                     <input type="text" name="nombre" className="form-control" value={form.nombre} onChange={handleChange} placeholder="Ej: Thiago" />
@@ -164,7 +201,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Jugador</th>
@@ -184,9 +221,14 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                       </td>
                     </tr>
                   ) : (
-                    filtrados.map((j) => (
+                    pag.cortar(filtrados).map((j) => (
                       <tr key={j.id}>
-                        <td className="px-3 fw-semibold">{j.nombre} {j.apellido}</td>
+                        <td className="px-3 fw-semibold">
+                          <div className="d-flex align-items-center gap-2">
+                            <Avatar jugador={j} size={36} />
+                            <span>{j.nombre} {j.apellido}</span>
+                          </div>
+                        </td>
                         <td>{j.documento || '-'}</td>
                         <td><span className="badge bg-primary-subtle text-primary">{categoriaNombre(j.categoriaId)}</span></td>
                         <td>{calcularEdad(j.fechaNacimiento)}</td>
@@ -213,6 +255,14 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                 </tbody>
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={filtrados.length}
+            />
           </div>
         </div>
       </div>

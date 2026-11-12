@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '' };
 
@@ -53,6 +55,8 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
   const filtradas = categorias.filter((c) =>
     c.nombre.toLowerCase().includes(buscar.toLowerCase())
   );
+
+  const pag = usePaginacion(filtradas.length);
 
   return (
     <>
@@ -119,7 +123,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Categoría</th>
@@ -137,7 +141,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                       </td>
                     </tr>
                   ) : (
-                    filtradas.map((c) => {
+                    pag.cortar(filtradas).map((c) => {
                       const cant = jugadoresEn(c.id).length;
                       const ent = entrenadorNombre(c.entrenadorId);
                       return (
@@ -169,6 +173,14 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                 </tbody>
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={filtradas.length}
+            />
           </div>
         </div>
       </div>

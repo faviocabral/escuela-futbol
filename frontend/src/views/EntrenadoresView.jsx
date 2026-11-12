@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Paginador } from '../components/Paginador';
+import { usePaginacion } from '../hooks/usePaginacion';
 
 const FORM_VACIO = { nombre: '', apellido: '', telefono: '', email: '' };
 
@@ -37,6 +39,8 @@ export const EntrenadoresView = ({ entrenadores, categorias, onAdd, onUpdate, on
   const filtrados = entrenadores.filter((ent) =>
     `${ent.nombre} ${ent.apellido} ${ent.email}`.toLowerCase().includes(buscar.toLowerCase())
   );
+
+  const pag = usePaginacion(filtrados.length);
 
   return (
     <>
@@ -98,7 +102,7 @@ export const EntrenadoresView = ({ entrenadores, categorias, onAdd, onUpdate, on
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Entrenador</th>
@@ -116,7 +120,7 @@ export const EntrenadoresView = ({ entrenadores, categorias, onAdd, onUpdate, on
                       </td>
                     </tr>
                   ) : (
-                    filtrados.map((ent) => {
+                    pag.cortar(filtrados).map((ent) => {
                       const cats = categoriasDe(ent.id);
                       return (
                         <tr key={ent.id}>
@@ -145,6 +149,14 @@ export const EntrenadoresView = ({ entrenadores, categorias, onAdd, onUpdate, on
                 </tbody>
               </table>
             </div>
+            <Paginador
+              pagina={pag.pagina}
+              totalPaginas={pag.totalPaginas}
+              onChange={pag.setPagina}
+              desde={pag.desde}
+              hasta={pag.hasta}
+              total={filtrados.length}
+            />
           </div>
         </div>
       </div>
