@@ -1,15 +1,18 @@
 import express from 'express';
 import multer from 'multer';
 import { GoogleGenAI } from '@google/genai';
+import { createClient } from '@supabase/supabase-js';
 import knexConfig from 'knex';
 import sharp from 'sharp';
 import 'dotenv/config';
 import fs, { promises as fsPromises } from 'node:fs';
 import path from 'path';
-import https from 'node:https';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
-const port = 3800;
+const port = process.env.PORT || 3800;
 
 // Configurar Multer para aceptar hasta 30 archivos en memoria
 const storage = multer.memoryStorage();
@@ -18,6 +21,11 @@ const upload = multer({ storage: storage });
 const ai = new GoogleGenAI({ 
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+// ☁️ Cliente de Supabase Storage (solo necesario en producción)
+const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+    : null;
 
 // 🗄️ CONEXIÓN A POSTGRESQL VÍA KNEX
 const db = knexConfig({
@@ -28,6 +36,8 @@ const db = knexConfig({
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'tu_password',
         database: process.env.DB_NAME || 'tu_base_datos',
+        // Supabase exige SSL; en local se omite con DB_SSL=false
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     },
     pool: { min: 2, max: 20 }
 });
@@ -155,6 +165,7 @@ async function procesarFacturaIndividual(file) {
 
         if (process.env.NODE_ENV === 'production') {
             // 🌐 PRODUCCIÓN: Subida directa al Storage de Supabase
+            if (!supabase) throw new Error('Supabase no configurado: faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
             const nombreArchivoUnico = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
             const { data: uploadData, error: uploadError } = await 
             supabase.storage
@@ -422,6 +433,17 @@ app.get('/api/clientes/paginadas', verificarTokenSeguridad, async (req, res) => 
     }
 });
 
+
+// 🖥️ SERVIR EL FRONTEND (build de Vite) — mismo origen, sin CORS
+const distPath = path.resolve(__dirname, '../frontend/dist');
+if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+    app.get(/^(?!\/(api|previews)\/).*/, (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+    });
+} else {
+    console.warn('⚠️ No se encontró frontend/dist. Ejecuta "npm run build" en frontend/ para servir el panel web.');
+}
 
 app.listen(port, () => {
     console.log(`🚀 Servidor multi-paralelo de alto rendimiento corriendo en http://localhost:${port}`);

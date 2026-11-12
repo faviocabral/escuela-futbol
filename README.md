@@ -1,54 +1,41 @@
-# Escuela Fútbol — Lector de Facturas
+# Escuela de Fútbol
 
-Sistema para procesar facturas en imágenes usando IA (Google Gemini), almacenar los datos en PostgreSQL y gestionar clientes desde un panel web.
+Sistema de gestión para una escuela de fútbol: fichas de jugadores, entrenadores, categorías (Sub-7, Sub-9…), calendario de torneos, convocatorias, control de asistencia y pagos de mensualidad.
 
 ## Estructura
 
-- `backend/` — API en Node.js + Express. Extrae datos de facturas con Gemini, los guarda en PostgreSQL (Knex) y expone endpoints paginados de facturas y clientes.
-- `frontend/` — Panel web en React + Vite (Bootstrap/AdminLTE/PrimeReact).
+- `frontend/` — Panel web en React + Vite (AdminLTE 4 / Bootstrap 5, responsive). **Actualmente funciona como mockup**: los datos viven en `src/mockData.js` para validar el flujo de pantallas.
+- `backend/` — API en Node.js + Express (pendiente de reescritura para el dominio de fútbol).
 
-## Requisitos
+## Módulos (frontend)
 
-- Node.js 20+
-- PostgreSQL con las tablas `public.facturas` y `public.clientes`
-- Una API key de Google Gemini
+| Módulo | Qué hace |
+|---|---|
+| Jugadores | ABM de ficha de jugador, filtro por nombre/categoría/estado |
+| Entrenadores | ABM de entrenadores, muestra categorías a cargo |
+| Categorías | ABM de categorías por edad con entrenador asignado |
+| Torneos | Calendario + convocatoria (checklist de jugadores por categoría) |
+| Asistencia | Planilla por entrenamiento (categoría+fecha) o por torneo (convocados) |
+| Pagos | Mensualidad por jugador, alerta de pendientes, historial filtrado |
 
-## Configuración
+## Acceso (mock)
 
-1. Copia `backend/.env.example` a `backend/.env` y completa los valores:
+`admin / admin123`
 
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-
-   Variables requeridas: `GEMINI_API_KEY`, `API_SECRET_TOKEN`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`.
-
-2. **Nunca commitees `.env`** — ya está en `.gitignore`.
-
-## Ejecutar
-
-### Local
+## Ejecutar en desarrollo
 
 ```bash
-# Backend (puerto 3800)
-cd backend
-npm install
-node index.js
-
-# Frontend (puerto 5173)
 cd frontend
 npm install
 npm run dev
 ```
 
-### Docker
+## Próximos pasos (conexión real)
 
-```bash
-cd backend && docker compose up -d
-cd frontend && docker compose up -d
-```
+1. Reescribir `backend/index.js` con endpoints REST para jugadores, entrenadores, categorías, torneos, convocatorias, asistencias, pagos y login de usuarios.
+2. Base de datos en **Supabase** (Postgres gratuito).
+3. Deploy del frontend + backend en **Render** (el backend servirá el build del frontend).
 
-## Seguridad
+## Notas
 
-- Todos los endpoints del backend exigen `Authorization: Bearer <API_SECRET_TOKEN>`.
-- Los previews de facturas (`backend/public/previews/`) y datos (`datos_excel/`, `uploads/`, `temp/`) están excluidos del control de versiones.
+- Las variables de entorno nunca se commitean: `.env` está en `.gitignore`; usar `backend/.env.example` como guía.

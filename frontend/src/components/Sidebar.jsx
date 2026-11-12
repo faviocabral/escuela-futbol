@@ -1,27 +1,31 @@
 import React from 'react';
 
 export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSidebar }) => {
-  
-  // Nomenclatura de pestañas internas
+
   const menuItems = [
-    { id: 'clientes', label: 'Clientes', icon: 'bi-people' },
-    { id: 'facturas', label: 'Cargar Facturas', icon: 'bi-file-earmark-arrow-up' }
+    { id: 'jugadores', label: 'Jugadores', icon: 'bi-person-arms-up' },
+    { id: 'entrenadores', label: 'Entrenadores', icon: 'bi-person-badge' },
+    { id: 'categorias', label: 'Categorías', icon: 'bi-diagram-3' },
+    { id: 'torneos', label: 'Torneos', icon: 'bi-trophy' },
+    { id: 'asistencia', label: 'Asistencia', icon: 'bi-check2-square' },
+    { id: 'pagos', label: 'Pagos', icon: 'bi-cash-coin' },
   ];
 
   return (
-    <aside 
-      className="app-sidebar bg-dark shadow" 
+    <aside
+      className="app-sidebar bg-dark shadow"
       data-bs-theme="dark"
-      style={{ 
+      style={{
         position: 'fixed', top: 0, bottom: 0, left: 0,
-        width: isSidebarOpen ? '250px' : '0px', 
-        overflowX: 'hidden', transition: 'width 0.3s ease-in-out', zIndex: 1038 
+        width: isSidebarOpen ? '250px' : '0px',
+        overflowX: 'hidden', transition: 'width 0.3s ease-in-out', zIndex: 1038
       }}
     >
       <div className="sidebar-brand border-bottom border-secondary py-3 text-center text-white">
-        <span className="brand-text fw-bold" 
-          onClick={onToggleSidebar}>
-          Lector Facturas 
+        <span className="brand-text fw-bold"
+          onClick={onToggleSidebar}
+          style={{ cursor: 'pointer' }}>
+          <i className="bi bi-trophy-fill text-success me-1"></i> Escuela de Fútbol
         </span>
       </div>
       <div className="sidebar-wrapper p-3" style={{ width: '250px' }}>

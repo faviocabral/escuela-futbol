@@ -1,17 +1,15 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState } from 'react';
 import Login from './views/Login';
 import Dashboard from './views/Dashboard';
 
-
 function App() {
-  return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
-    </Router>
+  // Mock de sesión: al conectar el backend esto pasará a ser un token real
+  const [usuario, setUsuario] = useState(null);
+
+  return usuario ? (
+    <Dashboard usuario={usuario} onLogout={() => setUsuario(null)} />
+  ) : (
+    <Login onLogin={setUsuario} />
   );
 }
 
