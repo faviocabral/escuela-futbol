@@ -13,15 +13,15 @@ export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSide
 
   return (
     <aside
-      className="app-sidebar bg-dark shadow"
-      data-bs-theme="dark"
+      className="app-sidebar bg-white shadow border-end"
+      data-bs-theme="light"
       style={{
         position: 'fixed', top: 0, bottom: 0, left: 0,
         width: isSidebarOpen ? '250px' : '0px',
         overflowX: 'hidden', transition: 'width 0.3s ease-in-out', zIndex: 1038
       }}
     >
-      <div className="sidebar-brand border-bottom border-secondary py-3 text-center text-white">
+      <div className="sidebar-brand border-bottom py-3 text-center text-dark">
         <span className="brand-text fw-bold"
           onClick={onToggleSidebar}
           style={{ cursor: 'pointer' }}>
@@ -37,7 +37,7 @@ export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSide
                 <li key={item.id} className="nav-item mb-2">
                   <button
                     onClick={() => onViewChange(item.id)}
-                    className={`nav-link text-start w-100 border-0 text-white d-flex align-items-center py-2 px-3 ${isActive ? 'active bg-primary fw-bold' : 'bg-transparent opacity-75'}`}
+                    className={`nav-link text-start w-100 border-0 d-flex align-items-center py-2 px-3 ${isActive ? 'active bg-primary text-white fw-bold' : 'bg-transparent text-dark opacity-75'}`}
                   >
                     <i className={`bi ${item.icon} me-3 fs-5`}></i>
                     <span>{item.label}</span>
