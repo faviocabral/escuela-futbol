@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { aviso, confirmar, toast } from '../utils/notify';
 
 const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '' };
 
@@ -23,7 +24,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.nombre.trim()) return alert('El nombre de la categoría es obligatorio (Ej: Sub-7).');
+    if (!form.nombre.trim()) return aviso('El nombre de la categoría es obligatorio (Ej: Sub-7).');
 
     const registro = {
       ...form,
@@ -35,8 +36,10 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
     if (editandoId) {
       onUpdate({ ...registro, id: editandoId });
       setEditandoId(null);
+      toast('Categoría actualizada');
     } else {
       onAdd(registro);
+      toast('Categoría creada');
     }
     setForm(FORM_VACIO);
   };
@@ -162,7 +165,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                             <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(c)} title="Editar">
                               <i className="bi bi-pencil"></i>
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm(`¿Eliminar la categoría ${c.nombre}?`)) onDelete(c.id); }} title="Eliminar">
+                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar la categoría ${c.nombre}?`)) onDelete(c.id); }} title="Eliminar">
                               <i className="bi bi-trash"></i>
                             </button>
                           </td>

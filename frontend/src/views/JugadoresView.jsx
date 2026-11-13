@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { aviso, confirmar, toast } from '../utils/notify';
 
 const FORM_VACIO = {
   nombre: '', apellido: '', documento: '', fechaNacimiento: '',
@@ -49,14 +50,16 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.nombre.trim() || !form.apellido.trim()) return alert('Nombre y apellido son obligatorios.');
-    if (!form.categoriaId) return alert('Selecciona una categoría.');
+    if (!form.nombre.trim() || !form.apellido.trim()) return aviso('Nombre y apellido son obligatorios.');
+    if (!form.categoriaId) return aviso('Selecciona una categoría.');
 
     const registro = { ...form, categoriaId: Number(form.categoriaId) };
     if (editandoId) {
       onUpdate({ ...registro, id: editandoId });
+      toast('Jugador actualizado');
     } else {
       onAdd(registro);
+      toast('Jugador registrado');
     }
     resetFormulario();
   };
@@ -279,7 +282,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                           <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(j)} title="Editar">
                             <i className="bi bi-pencil"></i>
                           </button>
-                          <button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm(`¿Eliminar a ${j.nombre} ${j.apellido}?`)) onDelete(j.id); }} title="Eliminar">
+                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar a ${j.nombre} ${j.apellido}?`)) onDelete(j.id); }} title="Eliminar">
                             <i className="bi bi-trash"></i>
                           </button>
                         </td>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { aviso, confirmar, toast } from '../utils/notify';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -31,13 +32,13 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!jugadorId) return alert('Selecciona el jugador.');
-    if (Number(monto) <= 0) return alert('El monto debe ser mayor a 0.');
+    if (!jugadorId) return aviso('Selecciona el jugador.');
+    if (Number(monto) <= 0) return aviso('El monto debe ser mayor a 0.');
 
     const duplicado = pagos.find(
       (p) => p.jugadorId === Number(jugadorId) && p.mes === Number(mes) && p.anio === Number(anio)
     );
-    if (duplicado) return alert(`Ya existe un pago registrado para ${jugadorNombre(Number(jugadorId))} en ${MESES[mes - 1]} ${anio}.`);
+    if (duplicado) return aviso(`Ya existe un pago registrado para ${jugadorNombre(Number(jugadorId))} en ${MESES[mes - 1]} ${anio}.`);
 
     onAdd({
       jugadorId: Number(jugadorId),
@@ -47,6 +48,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
       metodo,
       fechaPago: hoy.toISOString().slice(0, 10),
     });
+    toast('Pago registrado');
     setJugadorId('');
   };
 
@@ -200,7 +202,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
                         <td>{p.metodo}</td>
                         <td>{p.fechaPago}</td>
                         <td className="px-3 text-end">
-                          <button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm('¿Eliminar este pago?')) onDelete(p.id); }} title="Eliminar">
+                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar('¿Eliminar este pago?')) onDelete(p.id); }} title="Eliminar">
                             <i className="bi bi-trash"></i>
                           </button>
                         </td>

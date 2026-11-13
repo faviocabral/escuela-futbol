@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { aviso } from '../utils/notify';
 
 const formatearFecha = (iso) => {
   if (!iso) return '-';
@@ -59,7 +60,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
     setMarcas((prev) => ({ ...prev, [jugadorId]: !prev[jugadorId] }));
 
   const guardar = () => {
-    if (jugadoresLista.length === 0) return alert('No hay jugadores en la lista.');
+    if (jugadoresLista.length === 0) return aviso('No hay jugadores en la lista.');
     const planilla =
       modo === 'torneo'
         ? {
@@ -77,7 +78,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
             registros: jugadoresLista.map((j) => ({ jugadorId: j.id, presente: !!marcas[j.id] })),
           };
     onSave(planilla);
-    alert(`Asistencia guardada: ${planilla.registros.filter((r) => r.presente).length}/${planilla.registros.length} presentes.`);
+    aviso(`Asistencia guardada: ${planilla.registros.filter((r) => r.presente).length}/${planilla.registros.length} presentes.`, 'success');
     setMarcas({});
   };
 

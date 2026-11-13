@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { aviso, confirmar, toast } from '../utils/notify';
 
 const FORM_VACIO = { nombre: '', fecha: '', lugar: '', categoriaId: '' };
 
@@ -30,16 +31,18 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!form.nombre.trim()) return alert('El nombre del torneo es obligatorio.');
-    if (!form.fecha) return alert('Selecciona la fecha del torneo.');
-    if (!form.categoriaId) return alert('Selecciona la categoría participante.');
+    if (!form.nombre.trim()) return aviso('El nombre del torneo es obligatorio.');
+    if (!form.fecha) return aviso('Selecciona la fecha del torneo.');
+    if (!form.categoriaId) return aviso('Selecciona la categoría participante.');
 
     const registro = { ...form, categoriaId: Number(form.categoriaId) };
     if (editandoId) {
       onUpdate({ ...registro, id: editandoId });
       setEditandoId(null);
+      toast('Torneo actualizado');
     } else {
       onAdd(registro);
+      toast('Torneo agendado');
     }
     setForm(FORM_VACIO);
   };
@@ -67,6 +70,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
     onSaveConvocatoria(torneoConvocatoria.id, seleccionados);
     setTorneoConvocatoria(null);
     setSeleccionados([]);
+    toast('Convocatoria guardada');
   };
 
   const filtrados = torneos
@@ -243,7 +247,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                             <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(t)} title="Editar">
                               <i className="bi bi-pencil"></i>
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => { if (confirm(`¿Eliminar el torneo "${t.nombre}"?`)) onDelete(t.id); }} title="Eliminar">
+                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar el torneo "${t.nombre}"?`)) onDelete(t.id); }} title="Eliminar">
                               <i className="bi bi-trash"></i>
                             </button>
                           </td>
