@@ -222,6 +222,8 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
               pagina={pag.pagina}
               totalPaginas={pag.totalPaginas}
               onChange={pag.setPagina}
+              porPagina={pag.porPagina}
+              onPorPagina={pag.cambiarPorPagina}
               desde={pag.desde}
               hasta={pag.hasta}
               total={filtrados.length}
