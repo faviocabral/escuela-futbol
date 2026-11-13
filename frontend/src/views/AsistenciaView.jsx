@@ -200,7 +200,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
               <span className="badge bg-secondary ms-2">{historial.length}</span>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-sm table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped text-nowrap">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Fecha</th>
@@ -236,7 +236,10 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                             </span>
                           </td>
                           <td className="small text-muted">
-                            {a.registros.filter((r) => r.presente).map((r) => jugadorNombre(r.jugadorId)).join(', ') || 'Sin presentes'}
+                            <div className="text-truncate" style={{ maxWidth: '280px' }}
+                              title={a.registros.filter((r) => r.presente).map((r) => jugadorNombre(r.jugadorId)).join(', ')}>
+                              {a.registros.filter((r) => r.presente).map((r) => jugadorNombre(r.jugadorId)).join(', ') || 'Sin presentes'}
+                            </div>
                           </td>
                         </tr>
                       );

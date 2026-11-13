@@ -102,7 +102,7 @@ export const EntrenadoresView = ({ entrenadores, categorias, onAdd, onUpdate, on
               </div>
             </div>
             <div className="card-body p-0 table-responsive">
-              <table className="table table-sm table-hover align-middle m-0 table-striped">
+              <table className="table table-sm table-hover align-middle m-0 table-striped text-nowrap">
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Entrenador</th>
