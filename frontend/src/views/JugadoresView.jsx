@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Avatar } from '../components/Avatar';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
@@ -24,6 +24,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
   const [buscar, setBuscar] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
+  const fileInputRef = useRef(null);
 
   const categoriaNombre = (id) => categorias.find((c) => c.id === Number(id))?.nombre || 'Sin categoría';
 
@@ -40,6 +41,12 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
     reader.readAsDataURL(file);
   };
 
+  const resetFormulario = () => {
+    setForm(FORM_VACIO);
+    setEditandoId(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || !form.apellido.trim()) return alert('Nombre y apellido son obligatorios.');
@@ -48,11 +55,10 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
     const registro = { ...form, categoriaId: Number(form.categoriaId) };
     if (editandoId) {
       onUpdate({ ...registro, id: editandoId });
-      setEditandoId(null);
     } else {
       onAdd(registro);
     }
-    setForm(FORM_VACIO);
+    resetFormulario();
   };
 
   const handleEditar = (j) => {
@@ -62,8 +68,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
   };
 
   const handleCancelar = () => {
-    setForm(FORM_VACIO);
-    setEditandoId(null);
+    resetFormulario();
   };
 
   const filtrados = jugadores.filter((j) => {
@@ -89,28 +94,57 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
             <div className="card-body">
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
-                  {/* Foto del jugador */}
+                  {/* Foto del jugador: input oculto, se abre al clicar el avatar */}
                   <div className="col-12 d-flex align-items-center gap-3 mb-1">
-                    <Avatar jugador={form} size={72} />
-                    <div className="flex-grow-1">
-                      <label className="form-label small fw-semibold text-secondary mb-1">Foto del jugador</label>
-                      <div className="d-flex gap-2 align-items-center">
-                        <input
-                          type="file"
-                          className="form-control form-control-sm"
-                          accept="image/*"
-                          onChange={handleFoto}
-                        />
-                        {form.foto && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-danger text-nowrap"
-                            onClick={() => setForm((prev) => ({ ...prev, foto: null }))}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="d-none"
+                      accept="image/*"
+                      onChange={handleFoto}
+                    />
+                    <div
+                      className="position-relative"
+                      style={{ cursor: 'pointer' }}
+                      title={form.foto ? 'Cambiar foto' : 'Agregar foto'}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Avatar jugador={form} size={72} />
+                      <span
+                        className="position-absolute bottom-0 end-0 bg-primary text-white rounded-circle d-flex align-items-center justify-content-center border border-white"
+                        style={{ width: '24px', height: '24px' }}
+                      >
+                        <i className="bi bi-camera-fill" style={{ fontSize: '11px' }}></i>
+                      </span>
+                    </div>
+                    <div>
+                      <div className="small fw-semibold text-secondary mb-1">Foto del jugador</div>
+                      {form.foto ? (
+                        <div className="d-flex gap-3 small">
+                          <a href="#" onClick={(e) => { e.preventDefault(); fileInputRef.current?.click(); }}>
+                            Cambiar
+                          </a>
+                          <a
+                            href="#"
+                            className="text-danger"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setForm((prev) => ({ ...prev, foto: null }));
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                            }}
                           >
-                            <i className="bi bi-x-lg me-1"></i> Quitar
-                          </button>
-                        )}
-                      </div>
+                            Quitar
+                          </a>
+                        </div>
+                      ) : (
+                        <a
+                          href="#"
+                          className="small"
+                          onClick={(e) => { e.preventDefault(); fileInputRef.current?.click(); }}
+                        >
+                          Agregar foto
+                        </a>
+                      )}
                     </div>
                   </div>
                   <div className="col-12 col-md-3">
