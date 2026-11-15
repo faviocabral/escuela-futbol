@@ -59,7 +59,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
   const toggleMarca = (jugadorId) =>
     setMarcas((prev) => ({ ...prev, [jugadorId]: !prev[jugadorId] }));
 
-  const guardar = () => {
+  const guardar = async () => {
     if (jugadoresLista.length === 0) return aviso('No hay jugadores en la lista.');
     const planilla =
       modo === 'torneo'
@@ -77,7 +77,8 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
             fecha,
             registros: jugadoresLista.map((j) => ({ jugadorId: j.id, presente: !!marcas[j.id] })),
           };
-    onSave(planilla);
+    const ok = await onSave(planilla);
+    if (!ok) return;
     aviso(`Asistencia guardada: ${planilla.registros.filter((r) => r.presente).length}/${planilla.registros.length} presentes.`, 'success');
     setMarcas({});
   };

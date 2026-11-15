@@ -7,7 +7,12 @@ import { CategoriasView } from './CategoriasView';
 import { TorneosView } from './TorneosView';
 import { AsistenciaView } from './AsistenciaView';
 import { PagosView } from './PagosView';
-import { useStore, setterFor } from '../store';
+import {
+  useStore, useCargando, cargarDatos,
+  crearEn, actualizarEn, eliminarEn,
+  guardarConvocatoria, guardarAsistencia,
+} from '../store';
+import { aviso } from '../utils/notify';
 
 const TITULOS = {
   jugadores: 'Jugadores',
@@ -21,58 +26,21 @@ const TITULOS = {
 export default function Dashboard({ usuario, onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentView, setCurrentView] = useState('jugadores');
+  const cargando = useCargando();
 
-  // Estado global mock compartido (store.js) — luego se reemplaza por la API
+  // Colecciones desde el store (cache de la API)
   const jugadores = useStore((s) => s.jugadores);
-  const setJugadores = setterFor('jugadores');
   const entrenadores = useStore((s) => s.entrenadores);
-  const setEntrenadores = setterFor('entrenadores');
   const categorias = useStore((s) => s.categorias);
-  const setCategorias = setterFor('categorias');
   const torneos = useStore((s) => s.torneos);
-  const setTorneos = setterFor('torneos');
   const convocatorias = useStore((s) => s.convocatorias);
-  const setConvocatorias = setterFor('convocatorias');
   const asistencias = useStore((s) => s.asistencias);
-  const setAsistencias = setterFor('asistencias');
   const pagos = useStore((s) => s.pagos);
-  const setPagos = setterFor('pagos');
 
-  const nextId = (lista) => (lista.length ? Math.max(...lista.map((i) => i.id)) + 1 : 1);
-
-  // Alta genérica: devuelve una función que agrega el registro a la colección
-  const crear = (setter, lista) => (registro) =>
-    setter((prev) => [...prev, { ...registro, id: nextId(lista) }]);
-
-  const actualizar = (setter) => (registro) =>
-    setter((prev) => prev.map((i) => (i.id === registro.id ? registro : i)));
-
-  const eliminar = (setter) => (id) =>
-    setter((prev) => prev.filter((i) => i.id !== id));
-
-  const guardarConvocatoria = (torneoId, jugadorIds) => {
-    setConvocatorias((prev) => {
-      const resto = prev.filter((c) => c.torneoId !== torneoId);
-      const nuevas = jugadorIds.map((jugadorId, idx) => ({
-        id: nextId(prev) + idx,
-        torneoId,
-        jugadorId,
-      }));
-      return [...resto, ...nuevas];
-    });
-  };
-
-  const guardarAsistencia = (planilla) => {
-    setAsistencias((prev) => {
-      // Si ya existe planilla para ese torneo o (categoría+fecha), se reemplaza
-      const filtradas = prev.filter((a) =>
-        planilla.tipo === 'torneo'
-          ? a.torneoId !== planilla.torneoId
-          : !(a.tipo === 'entrenamiento' && a.categoriaId === planilla.categoriaId && a.fecha === planilla.fecha)
-      );
-      return [...filtradas, { ...planilla, id: nextId(prev) }];
-    });
-  };
+  // Carga inicial desde la API
+  useEffect(() => {
+    cargarDatos().catch((e) => aviso(`No se pudieron cargar los datos: ${e.message}`, 'error'));
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -91,9 +59,9 @@ export default function Dashboard({ usuario, onLogout }) {
           <JugadoresView
             jugadores={jugadores}
             categorias={categorias}
-            onAdd={crear(setJugadores, jugadores)}
-            onUpdate={actualizar(setJugadores)}
-            onDelete={eliminar(setJugadores)}
+            onAdd={crearEn('jugadores', '/api/jugadores')}
+            onUpdate={actualizarEn('jugadores', '/api/jugadores')}
+            onDelete={eliminarEn('jugadores', '/api/jugadores')}
           />
         );
       case 'entrenadores':
@@ -101,9 +69,9 @@ export default function Dashboard({ usuario, onLogout }) {
           <EntrenadoresView
             entrenadores={entrenadores}
             categorias={categorias}
-            onAdd={crear(setEntrenadores, entrenadores)}
-            onUpdate={actualizar(setEntrenadores)}
-            onDelete={eliminar(setEntrenadores)}
+            onAdd={crearEn('entrenadores', '/api/entrenadores')}
+            onUpdate={actualizarEn('entrenadores', '/api/entrenadores')}
+            onDelete={eliminarEn('entrenadores', '/api/entrenadores')}
           />
         );
       case 'categorias':
@@ -112,9 +80,9 @@ export default function Dashboard({ usuario, onLogout }) {
             categorias={categorias}
             entrenadores={entrenadores}
             jugadores={jugadores}
-            onAdd={crear(setCategorias, categorias)}
-            onUpdate={actualizar(setCategorias)}
-            onDelete={eliminar(setCategorias)}
+            onAdd={crearEn('categorias', '/api/categorias')}
+            onUpdate={actualizarEn('categorias', '/api/categorias')}
+            onDelete={eliminarEn('categorias', '/api/categorias')}
           />
         );
       case 'torneos':
@@ -124,9 +92,9 @@ export default function Dashboard({ usuario, onLogout }) {
             categorias={categorias}
             jugadores={jugadores}
             convocatorias={convocatorias}
-            onAdd={crear(setTorneos, torneos)}
-            onUpdate={actualizar(setTorneos)}
-            onDelete={eliminar(setTorneos)}
+            onAdd={crearEn('torneos', '/api/torneos')}
+            onUpdate={actualizarEn('torneos', '/api/torneos')}
+            onDelete={eliminarEn('torneos', '/api/torneos')}
             onSaveConvocatoria={guardarConvocatoria}
           />
         );
@@ -147,8 +115,8 @@ export default function Dashboard({ usuario, onLogout }) {
             pagos={pagos}
             jugadores={jugadores}
             categorias={categorias}
-            onAdd={crear(setPagos, pagos)}
-            onDelete={eliminar(setPagos)}
+            onAdd={crearEn('pagos', '/api/pagos')}
+            onDelete={eliminarEn('pagos', '/api/pagos')}
           />
         );
       default:
@@ -190,7 +158,14 @@ export default function Dashboard({ usuario, onLogout }) {
             </span>
           </div>
 
-          {renderComponentView()}
+          {cargando ? (
+            <div className="text-center text-muted py-5">
+              <div className="spinner-border text-success mb-3" role="status"></div>
+              <p className="small">Cargando datos...</p>
+            </div>
+          ) : (
+            renderComponentView()
+          )}
 
         </div>
       </main>

@@ -3,10 +3,24 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './views/Login';
 import Dashboard from './views/Dashboard';
 import AsistenciaPublica from './views/AsistenciaPublica';
+import { setToken } from './api';
 
 function App() {
-  // Mock de sesión: al conectar el backend esto pasará a ser un token real
-  const [usuario, setUsuario] = useState(null);
+  // Sesión persistida en localStorage (token + datos del usuario)
+  const [usuario, setUsuario] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('usuario')); } catch { return null; }
+  });
+
+  const handleLogin = (u) => {
+    localStorage.setItem('usuario', JSON.stringify(u));
+    setUsuario(u);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('usuario');
+    setToken(null);
+    setUsuario(null);
+  };
 
   return (
     <Router>
@@ -19,9 +33,9 @@ function App() {
           path="*"
           element={
             usuario ? (
-              <Dashboard usuario={usuario} onLogout={() => setUsuario(null)} />
+              <Dashboard usuario={usuario} onLogout={handleLogout} />
             ) : (
-              <Login onLogin={setUsuario} />
+              <Login onLogin={handleLogin} />
             )
           }
         />

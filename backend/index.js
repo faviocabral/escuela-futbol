@@ -1,28 +1,27 @@
 import express from 'express';
+import cors from 'cors';
 import multer from 'multer';
-import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import knexConfig from 'knex';
-import sharp from 'sharp';
 import 'dotenv/config';
-import fs, { promises as fsPromises } from 'node:fs';
+import fs from 'node:fs';
 import path from 'path';
 import { fileURLToPath } from 'node:url';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const port = process.env.PORT || 3800;
+const JWT_SECRET = process.env.JWT_SECRET || 'cambiar-en-produccion';
 
-// Configurar Multer para aceptar hasta 30 archivos en memoria
-const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
 
-const ai = new GoogleGenAI({ 
-  apiKey: process.env.GEMINI_API_KEY,
-});
+const upload = multer({ storage: multer.memoryStorage() });
 
-// ☁️ Cliente de Supabase Storage (solo necesario en producción)
+// ☁️ Cliente de Supabase Storage (fotos de jugadores)
 const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
     ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
     : null;
@@ -31,410 +30,256 @@ const supabase = (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_
 const db = knexConfig({
     client: 'pg',
     connection: {
-        host: process.env.DB_HOST || 'localhost', // Pon 'db' si usas Docker Compose
+        host: process.env.DB_HOST || 'localhost',
         port: parseInt(process.env.DB_PORT || '5432'),
         user: process.env.DB_USER || 'postgres',
         password: process.env.DB_PASSWORD || 'tu_password',
-        database: process.env.DB_NAME || 'tu_base_datos',
+        database: process.env.DB_NAME || 'escuela_futbol',
         // Supabase exige SSL; en local se omite con DB_SSL=false
         ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
     },
     pool: { min: 2, max: 20 }
 });
 
-// Asegura que exista la carpeta para guardar los previews locales
-if (!fs.existsSync('./public/previews')) { 
-    fs.mkdirSync('./public/previews', { recursive: true }); 
-}
-
-// 🌐 Le decimos a Express que todo lo que esté en /public se pueda abrir desde el navegador
-app.use('/previews', express.static('./public/previews'));
-
-
-const responseSchemaFactura = {
-    type: 'OBJECT',
-    properties: {
-        proveedor: { type: 'STRING' },
-        ruc_proveedor: { type: 'STRING' },
-        timbrado: { type: 'STRING' },
-        fecha: { type: 'STRING' },
-        factura_numero: { type: 'STRING' },
-        gravado_10: { type: 'NUMBER' },
-        iva_10: { type: 'NUMBER' },
-        gravado_5: { type: 'NUMBER' },
-        iva_5: { type: 'NUMBER' },
-        total: { type: 'NUMBER' },
-        es_electronica: { type: 'BOOLEAN' },
-        condicion_pago: { type: 'STRING' }
-    },
-    required: [
-        'proveedor', 'ruc_proveedor', 'timbrado', 'fecha',
-        'factura_numero', 'gravado_10', 'iva_10', 'gravado_5',
-        'iva_5', 'total', 'es_electronica', 'condicion_pago'
-    ]
+// Wrapper para capturar errores async y responder 500
+const h = (fn) => async (req, res) => {
+    try { await fn(req, res); }
+    catch (e) { console.error(`❌ ${req.method} ${req.path}:`, e.message); res.status(500).json({ error: 'Error interno del servidor.' }); }
 };
 
-function verificarTokenSeguridad(req, res, next) {
-    const authorizationHeader = req.headers['authorization'];
-    if (!authorizationHeader || !authorizationHeader.startsWith('Bearer ')) {
-        console.warn("🛑 Intento de acceso bloqueado: Falta el token de seguridad.");
-        return res.status(401).json({ error: 'Acceso no autorizado. Falta el token Bearer en los headers.' });
+// 🔐 Middleware JWT — todos los endpoints privados pasan por acá
+function verificarToken(req, res, next) {
+    const header = req.headers['authorization'];
+    if (!header || !header.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Acceso no autorizado. Falta el token.' });
     }
-    const tokenRecibido = authorizationHeader.split(' ')[1];
-    if (tokenRecibido !== process.env.API_SECRET_TOKEN) {
-        console.warn("🛑 Intento de acceso bloqueado: Token inválido proporcionado.");
-        return res.status(403).json({ error: 'Acceso prohibido. El token proporcionado es inválido.' });
+    try {
+        req.usuario = jwt.verify(header.split(' ')[1], JWT_SECRET);
+        next();
+    } catch {
+        return res.status(403).json({ error: 'Sesión expirada o token inválido.' });
     }
-    next();
 }
 
+// ─────────────────────────────────────────────────────────────
+// MAPEADORES snake_case (DB) ↔ camelCase (frontend)
+// ─────────────────────────────────────────────────────────────
+const jugOut = (j) => ({
+    id: j.id, nombre: j.nombre, apellido: j.apellido, documento: j.documento,
+    fechaNacimiento: j.fecha_nacimiento, categoriaId: j.categoria_id,
+    tutor: j.tutor, telefonoTutor: j.telefono_tutor, activo: j.activo, foto: j.foto_url,
+});
+const jugIn = (j) => ({
+    nombre: j.nombre?.trim(), apellido: j.apellido?.trim(), documento: j.documento || null,
+    fecha_nacimiento: j.fechaNacimiento || null, categoria_id: j.categoriaId ?? null,
+    tutor: j.tutor || null, telefono_tutor: j.telefonoTutor || null, activo: j.activo ?? true,
+});
 
-/**
- * Lógica con reintento exponencial automático corregida (*= 2)
- */
-async function generarContenidoConReintento(payload, maxIntentos = 3, esperaInicial = 3000) {
-    let intento = 0;
-    let tiempoEspera = esperaInicial;
-    while (intento < maxIntentos) {
-        try {
-            intento++;
-            return await ai.models.generateContent(payload);
-        } catch (error) {
-            const esErrorServidor = error.status === 503 || error.status === 429 || error.message?.includes('503') || error.message?.includes('429');
-            if (esErrorServidor && intento < maxIntentos) {
-                console.warn(`⚠️ Servidor saturado/Rate Limit. Reintentando en ${tiempoEspera / 1000}s...`);
-                await new Promise(resolve => setTimeout(resolve, tiempoEspera));
-                tiempoEspera *= 2; 
-            } else {
-                throw error;
-            }
+const entIn = (e) => ({ nombre: e.nombre?.trim(), apellido: e.apellido?.trim(), telefono: e.telefono || null, email: e.email || null });
+
+const catOut = (c) => ({ id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id });
+const catIn = (c) => ({ nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null, entrenador_id: c.entrenadorId ?? null });
+
+const torOut = (t) => ({ id: t.id, nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: t.categoria_id });
+const torIn = (t) => ({ nombre: t.nombre?.trim(), fecha: t.fecha, lugar: t.lugar || null, categoria_id: t.categoriaId ?? null });
+
+const pagoOut = (p) => ({ id: p.id, jugadorId: p.jugador_id, mes: p.mes, anio: p.anio, monto: Number(p.monto), metodo: p.metodo, fechaPago: p.fecha_pago });
+const pagoIn = (p) => ({ jugador_id: p.jugadorId, mes: p.mes, anio: p.anio, monto: p.monto, metodo: p.metodo || null, fecha_pago: p.fechaPago || new Date() });
+
+const asisOut = (a, regs = []) => ({
+    id: a.id, tipo: a.tipo, fecha: a.fecha, categoriaId: a.categoria_id, torneoId: a.torneo_id,
+    registros: regs.filter((r) => r.asistencia_id === a.id).map((r) => ({ jugadorId: r.jugador_id, presente: r.presente })),
+});
+
+const convOut = (c) => ({ id: c.id, torneoId: c.torneo_id, jugadorId: c.jugador_id });
+
+// ─────────────────────────────────────────────────────────────
+// 🔑 LOGIN
+// ─────────────────────────────────────────────────────────────
+app.post('/api/login', h(async (req, res) => {
+    const { usuario, password } = req.body || {};
+    if (!usuario || !password) return res.status(400).json({ error: 'Usuario y contraseña son obligatorios.' });
+
+    const u = await db('usuarios').where({ usuario: usuario.trim().toLowerCase() }).first();
+    if (!u || !(await bcrypt.compare(password, u.password_hash))) {
+        return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
+    }
+    const token = jwt.sign({ id: u.id, usuario: u.usuario, nombre: u.nombre }, JWT_SECRET, { expiresIn: '12h' });
+    res.json({ token, usuario: { id: u.id, usuario: u.usuario, nombre: u.nombre } });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// 🌐 PÚBLICO — asistencia por cédula (sin login)
+// ─────────────────────────────────────────────────────────────
+// Busca jugador por cédula incluyendo el nombre de su categoría
+const jugadorPorDocumento = (documento) =>
+    db('jugadores')
+        .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
+        .select('jugadores.*', 'categorias.nombre as categoria_nombre')
+        .where({ 'jugadores.documento': documento })
+        .first();
+
+const jugPublicoOut = (j) => ({ ...jugOut(j), categoriaNombre: j.categoria_nombre || 'Sin categoría' });
+
+app.get('/api/public/jugador/:documento', h(async (req, res) => {
+    const j = await jugadorPorDocumento(req.params.documento);
+    if (!j) return res.status(404).json({ error: 'No encontramos un jugador con esa cédula.' });
+    res.json(jugPublicoOut(j));
+}));
+
+app.post('/api/public/asistencia', h(async (req, res) => {
+    const { documento } = req.body || {};
+    const j = await jugadorPorDocumento(documento);
+    if (!j) return res.status(404).json({ error: 'No encontramos un jugador con esa cédula.' });
+    if (!j.activo) return res.status(400).json({ error: 'Este jugador figura como inactivo.' });
+
+    const hoy = new Date().toISOString().slice(0, 10);
+    let planilla = await db('asistencias')
+        .where({ tipo: 'entrenamiento', categoria_id: j.categoria_id, fecha: hoy }).first();
+    if (!planilla) {
+        [planilla] = await db('asistencias')
+            .insert({ tipo: 'entrenamiento', fecha: hoy, categoria_id: j.categoria_id }).returning('*');
+    }
+
+    const yaMarcado = await db('asistencia_registros')
+        .where({ asistencia_id: planilla.id, jugador_id: j.id, presente: true }).first();
+    if (yaMarcado) return res.json({ resultado: 'ya_marcado', jugador: jugPublicoOut(j) });
+
+    await db('asistencia_registros')
+        .insert({ asistencia_id: planilla.id, jugador_id: j.id, presente: true })
+        .onConflict(['asistencia_id', 'jugador_id']).merge({ presente: true });
+
+    res.json({ resultado: 'ok', jugador: jugPublicoOut(j) });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// 📦 CRUD GENÉRICO (jugadores, entrenadores, categorías, torneos)
+// ─────────────────────────────────────────────────────────────
+const crud = (ruta, tabla, salida, entrada, orden = 'id') => {
+    app.get(`/api/${ruta}`, verificarToken, h(async (req, res) => {
+        res.json(await db(tabla).select('*').orderBy(orden).then((rows) => rows.map(salida)));
+    }));
+    app.post(`/api/${ruta}`, verificarToken, h(async (req, res) => {
+        const [row] = await db(tabla).insert(entrada(req.body)).returning('*');
+        res.status(201).json(salida(row));
+    }));
+    app.put(`/api/${ruta}/:id`, verificarToken, h(async (req, res) => {
+        const [row] = await db(tabla).where({ id: req.params.id }).update(entrada(req.body)).returning('*');
+        if (!row) return res.status(404).json({ error: 'Registro no encontrado.' });
+        res.json(salida(row));
+    }));
+    app.delete(`/api/${ruta}/:id`, verificarToken, h(async (req, res) => {
+        await db(tabla).where({ id: req.params.id }).del();
+        res.json({ ok: true });
+    }));
+};
+
+crud('jugadores', 'jugadores', jugOut, jugIn, ['apellido', 'nombre']);
+crud('entrenadores', 'entrenadores', (e) => e, entIn);
+crud('categorias', 'categorias', catOut, catIn, 'edad_min');
+crud('torneos', 'torneos', torOut, torIn, 'fecha');
+
+// 📸 Subir foto del jugador a Supabase Storage (bucket público 'jugadores-fotos')
+app.post('/api/jugadores/:id/foto', verificarToken, upload.single('foto'), h(async (req, res) => {
+    if (!supabase) return res.status(500).json({ error: 'Supabase Storage no configurado.' });
+    if (!req.file) return res.status(400).json({ error: 'Falta el archivo de foto.' });
+
+    const ext = (req.file.mimetype.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+    const nombre = `jugador_${req.params.id}_${Date.now()}.${ext}`;
+    const { error } = await supabase.storage
+        .from('jugadores-fotos')
+        .upload(nombre, req.file.buffer, { contentType: req.file.mimetype, upsert: true });
+    if (error) return res.status(500).json({ error: `Error al subir foto: ${error.message}` });
+
+    const { data } = supabase.storage.from('jugadores-fotos').getPublicUrl(nombre);
+    await db('jugadores').where({ id: req.params.id }).update({ foto_url: data.publicUrl });
+    res.json({ foto: data.publicUrl });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// 📋 CONVOCATORIAS
+// ─────────────────────────────────────────────────────────────
+app.get('/api/convocatorias', verificarToken, h(async (req, res) => {
+    res.json(await db('convocatorias').select('*').then((rows) => rows.map(convOut)));
+}));
+
+// Reemplaza la lista de convocados de un torneo
+app.put('/api/torneos/:id/convocatoria', verificarToken, h(async (req, res) => {
+    const jugadorIds = req.body.jugadorIds || [];
+    await db.transaction(async (trx) => {
+        await trx('convocatorias').where({ torneo_id: req.params.id }).del();
+        if (jugadorIds.length) {
+            await trx('convocatorias').insert(jugadorIds.map((jid) => ({ torneo_id: req.params.id, jugador_id: jid })));
         }
-    }
-}
+    });
+    res.json({ ok: true });
+}));
 
-/**
- * 🗄️ Inserción masiva ultra rápida con Knex
- */
-async function guardarLoteEnBaseDatos(listaDatos, idCliente) {
-    if (!listaDatos || listaDatos.length === 0) return;
-    try {
-        console.log(`📝 Insertando lote de ${listaDatos.length} facturas usando Knex...`);
-        const registrosLimpios = listaDatos.map(factura => ({
-            id_cliente: idCliente,
-            archivo_nombre: factura.archivo_nombre,
-            url_preview: factura.url_preview || null,
-            proveedor: factura.proveedor || null,
-            ruc_proveedor: factura.ruc_proveedor || null,
-            timbrado: factura.timbrado || null,
-            fecha: factura.fecha || null,
-            factura_numero: factura.factura_numero || null,
-            gravado_10: factura.gravado_10 ?? 0,
-            iva_10: factura.iva_10 ?? 0,
-            gravado_5: factura.gravado_5 ?? 0,
-            iva_5: factura.iva_5 ?? 0,
-            total: factura.total ?? 0,
-            es_electronica: factura.es_electronica ?? false,
-            condicion_pago: factura.condicion_pago || null
-        }));
+// ─────────────────────────────────────────────────────────────
+// ✅ ASISTENCIAS (planillas con registros)
+// ─────────────────────────────────────────────────────────────
+app.get('/api/asistencias', verificarToken, h(async (req, res) => {
+    const planillas = await db('asistencias').select('*').orderBy('fecha', 'desc');
+    const registros = planillas.length
+        ? await db('asistencia_registros').whereIn('asistencia_id', planillas.map((p) => p.id))
+        : [];
+    res.json(planillas.map((p) => asisOut(p, registros)));
+}));
 
-        await db.transaction(async (trx) => {
-            await trx.batchInsert('public.facturas', registrosLimpios, 30);
-        });
-        console.log(`💾 Inserción exitosa en PostgreSQL.`);
-    } catch (err) {
-        console.error("❌ Error crítico en la inserción con Knex:", err.message);
-        throw err;
-    }
-}
+// Guarda (o reemplaza) una planilla: { tipo, fecha, categoriaId, torneoId, registros:[{jugadorId,presente}] }
+app.post('/api/asistencias', verificarToken, h(async (req, res) => {
+    const { tipo, fecha, categoriaId, torneoId, registros = [] } = req.body || {};
+    if (!tipo || !fecha) return res.status(400).json({ error: 'Tipo y fecha son obligatorios.' });
 
-async function procesarFacturaIndividual(file) {
-    const idUnico = Math.random().toString(36).substring(7); // Para identificar la factura en los logs masivos
-    console.log(`\n=== 🚀 INICIO PROCESAMIENTO [${idUnico}] ===`);
-    console.time(`⏱️ [${idUnico}] Tiempo Total Función`);    
-    try {
-        // 1. MEDIR COMPRESIÓN CON SHARP
-        console.time(`  ↳ 🖼️ [${idUnico}] Sharp (Optimizar Imagen)`);        
-        // Redimensionamiento óptimo para legibilidad y peso de red
-        const bufferOptimizado = await sharp(file.buffer)
-            .resize({ width: 1200, withoutEnlargement: true })
-            .jpeg({ quality: 80 })
-            .toBuffer();
-        console.timeEnd(`  ↳ 🖼️ [${idUnico}] Sharp (Optimizar Imagen)`);
-        
-        let urlPublicaImagen = '';
+    const planilla = await db.transaction(async (trx) => {
+        // Reutiliza la planilla existente si ya hay una para ese torneo o categoría+fecha
+        const existente = await trx('asistencias')
+            .where(tipo === 'torneo' ? { torneo_id: torneoId } : { tipo, categoria_id: categoriaId, fecha })
+            .first();
 
-        if (process.env.NODE_ENV === 'production') {
-            // 🌐 PRODUCCIÓN: Subida directa al Storage de Supabase
-            if (!supabase) throw new Error('Supabase no configurado: faltan SUPABASE_URL o SUPABASE_SERVICE_ROLE_KEY.');
-            const nombreArchivoUnico = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
-            const { data: uploadData, error: uploadError } = await 
-            supabase.storage
-                .from('facturas-bucket')
-                .upload(nombreArchivoUnico, bufferOptimizado, { contentType: 'image/jpeg' });
-
-            if (uploadError) throw new Error(`Error Supabase: ${uploadError.message}`);
-
-            const { data: urlData } = supabase.storage.from('facturas-bucket').getPublicUrl(nombreArchivoUnico);
-            urlPublicaImagen = urlData.publicUrl; // URL en la nube de Supabase
+        let cab;
+        if (existente) {
+            cab = existente;
+            await trx('asistencia_registros').where({ asistencia_id: cab.id }).del();
         } else {
-
-            // 2. MEDIR ESCRITURA EN DISCO (DOCKER VIRTUAL)
-            console.time(`  ↳ 💾 [${idUnico}] Disco (fs.writeFile local)`);            
-            // 💻 DESARROLLO LOCAL: Escritura en tu máquina física vía volumen de Docker
-            // 📝 SIMULACIÓN DE ALMACENAMIENTO LOCAL
-            const nombreArchivoUnico = `${Date.now()}_${file.originalname.replace(/\s+/g, '_')}`;
-            const rutaFisicaGuardado = `./public/previews/${nombreArchivoUnico}`;
-            // fs.writeFile(rutaFisicaGuardado, bufferOptimizado, (err) => {
-            //     if (err) console.error("⚠️ Error escribiendo preview local:", err.message);
-            // });            
-            await fsPromises.writeFile(rutaFisicaGuardado, bufferOptimizado);
-            urlPublicaImagen = `http://localhost:3800/previews/${nombreArchivoUnico}`; // URL local
-            console.timeEnd(`  ↳ 💾 [${idUnico}] Disco (fs.writeFile local)`);
+            [cab] = await trx('asistencias')
+                .insert({ tipo, fecha, categoria_id: categoriaId ?? null, torneo_id: torneoId ?? null })
+                .returning('*');
         }
+        if (registros.length) {
+            await trx('asistencia_registros').insert(
+                registros.map((r) => ({ asistencia_id: cab.id, jugador_id: r.jugadorId, presente: !!r.presente }))
+            );
+        }
+        return cab;
+    });
 
-        // El objeto final que retorna la función usará 'url_preview: urlPublicaImagen' de forma automática
+    res.status(201).json(asisOut(planilla, registros.map((r) => ({ asistencia_id: planilla.id, jugador_id: r.jugadorId, presente: !!r.presente }))));
+}));
 
-        const imagenBase64 = {
-            inlineData: {
-                data: bufferOptimizado.toString("base64"),
-                mimeType: "image/jpeg"
-            }
-        };
+// ─────────────────────────────────────────────────────────────
+// 💰 PAGOS
+// ─────────────────────────────────────────────────────────────
+app.get('/api/pagos', verificarToken, h(async (req, res) => {
+    res.json(await db('pagos').select('*').orderBy('fecha_pago', 'desc').then((rows) => rows.map(pagoOut)));
+}));
 
-        // 3. MEDIR LATENCIA REAL DE GEMINI
-        console.time(`  ↳ 🤖 [${idUnico}] API Gemini 2.5 Flash`);
-        const payload = {
-            model: 'gemini-2.5-flash',
-            contents: [imagenBase64],
-            config: {
-                systemInstruction: "Eres un sistema experto en contabilidad. Tu única tarea es extraer con precisión matemática y estricta fidelidad los datos del documento de factura provisto. Si un valor numérico obligatorio no existe en la imagen o está en blanco, pon 0.",
-                temperature: 0,
-                responseMimeType: 'application/json',
-                responseSchema: responseSchemaFactura
-            }
-        };
-        const resultado = await generarContenidoConReintento(payload);
-        const datosIA = JSON.parse(resultado.text);
-        console.timeEnd(`  ↳ 🤖 [${idUnico}] API Gemini 2.5 Flash`);
-        console.timeEnd(`⏱️ [${idUnico}] Tiempo Total Función`);
-        console.log(`=== 🏁 FIN PROCESAMIENTO [${idUnico}] ===\n`);
-
-        return {
-            archivo_nombre: file.originalname,
-            url_preview: urlPublicaImagen,
-            ...datosIA
-        };
-
-    } catch (error) {
-        console.error(`❌ Error en archivo ${file.originalname}:`, error.message);
-        if (error.cause) { console.error(`👉 CAUSA REAL DEL FETCH:`, error.cause); }
-        return { 
-            error: true, 
-            archivo_nombre: file.originalname, 
-            detalle: error.message 
-        };
-    }
-}
-
-/**
- * ENDPOINT MULTI-FACTURA PARALELO AUTOMATIZADO CON VÍNCULO DE CLIENTE
- */
-app.post('/api/procesar-factura', verificarTokenSeguridad, upload.array('facturas', 30), async (req, res) => {
+app.post('/api/pagos', verificarToken, h(async (req, res) => {
     try {
-        // 🔍 1. Capturamos el id_cliente que viene desde el formulario (form-data)
-        const idCliente = req.body.id_cliente;
-
-        // Validamos que el cliente envíe el ID de forma obligatoria
-        if (!idCliente) {
-            return res.status(400).json({ error: 'Falta el parámetro obligatorio "id_cliente" en el body.' });
-        }
-
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'Sube una o más imágenes usando la llave "facturas".' });
-        }
-
-        console.log(`🚀 Iniciando procesamiento en paralelo de ${req.files.length} facturas para el Cliente ID: ${idCliente}...`);
-
-        const promesas = req.files.map(file => procesarFacturaIndividual(file));
-        const resultadosTotales = await Promise.all(promesas);
-
-        const exitosos = resultadosTotales.filter(r => !r.error);
-        const fallidos = resultadosTotales.filter(r => r.error);
-
-        // 🚀 2. Enviamos los datos exitosos y el idCliente a la función de Knex
-        if (exitosos.length > 0) {
-            await guardarLoteEnBaseDatos(exitosos, idCliente);
-        }
-
-        return res.status(200).json({
-            mensaje: `Proceso finalizado. Exitosos: ${exitosos.length}, Fallidos: ${fallidos.length}`,
-            procesados: exitosos,
-            errores: fallidos
-        });
-
-    } catch (error) {
-        console.error("❌ Error crítico en endpoint:", error.message);
-        return res.status(500).json({ error: 'Error interno del servidor al procesar el lote.' });
+        const [row] = await db('pagos').insert(pagoIn(req.body)).returning('*');
+        res.status(201).json(pagoOut(row));
+    } catch (e) {
+        if (e.code === '23505') return res.status(409).json({ error: 'Ya existe un pago para ese jugador en ese período.' });
+        throw e;
     }
-});
+}));
 
-/**
- * 📊 ENDPOINT PARA LISTAR FACTURAS PAGINADAS (CON O SIN FILTRO DE CLIENTE)
- * URL de ejemplo: /api/facturas/paginadas?page=1&limit=10&id_cliente=1
- */
-app.get('/api/facturas/paginadas', verificarTokenSeguridad, async (req, res) => {
-    try {
-        // 1. Capturamos los parámetros de la URL y definimos valores por defecto
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const idCliente = req.query.id_cliente; // Opcional: por si quieres filtrar por cliente 
+app.delete('/api/pagos/:id', verificarToken, h(async (req, res) => {
+    await db('pagos').where({ id: req.params.id }).del();
+    res.json({ ok: true });
+}));
 
-        // Calcular el punto de partida (desplazamiento) para la base de datos
-        const offset = (page - 1) * limit;
-
-        console.log(`📋 Consultando facturas paginadas: Página ${page}, Límite ${limit}...`);
-
-        // 2. Construimos la consulta base con Knex
-        const queryBase = db('public.facturas');
-        const countBase = db('public.facturas').count('id as total');
-
-        // Si el frontend envía un id_cliente, aplicamos el filtro en ambas consultas
-        if (idCliente) {
-            queryBase.where('id_cliente', idCliente);
-            countBase.where('id_cliente', idCliente);
-        }
-
-        // 3. Ejecutamos de forma simultánea la consulta de datos y el conteo total
-        const [totalResultado, facturas] = await Promise.all([
-            countBase.first(),
-            queryBase.select('*')
-                .orderBy('id', 'desc')
-                .limit(limit)
-                .offset(offset)
-        ]);
-
-        const totalRegistros = parseInt(totalResultado.total);
-        const totalPaginas = Math.ceil(totalRegistros / limit);
-
-        // 4. Devolvemos la estructura perfecta para el frontend
-        return res.status(200).json({
-            data: facturas, // El arreglo de facturas para renderizar en la tabla
-            pagination: {
-                total_registros: totalRegistros,
-                total_paginas: totalPaginas,
-                pagina_actual: page,
-                limite_por_pagina: limit,
-                tiene_pagina_anterior: page > 1,
-                tiene_pagina_siguiente: page < totalPaginas
-            }
-        });
-
-    } catch (error) {
-        console.error("❌ Error en el endpoint de facturas paginadas:", error.message);
-        return res.status(500).json({ error: 'Error interno del servidor al consultar el listado paginado.' });
-    }
-});
-
-
-/**
- * 🏢 ENDPOINT PARA REGISTRAR UN NUEVO CLIENTE
- * Recibe un JSON en el body con: nombre, ruc (opcional) y telefono (opcional)
- */
-app.post('/api/clientes', verificarTokenSeguridad, express.json(), async (req, res) => {
-    try {
-        const { nombre, ruc, telefono } = req.body;
-
-        // Validación estricta del campo obligatorio
-        if (!nombre || nombre.trim() === "") {
-            return res.status(400).json({ error: 'El campo "nombre" es obligatorio.' });
-        }
-
-        console.log(`🏢 Registrando nuevo cliente en el sistema: ${nombre}...`);
-
-        // Insertamos en PostgreSQL y recuperamos el ID generado
-        const [nuevoCliente] = await db('public.clientes')
-            .insert({
-                nombre: nombre.trim(),
-                ruc: ruc ? ruc.trim() : null,
-                telefono: telefono ? telefono.trim() : null
-            })
-            .returning(['id', 'nombre', 'ruc', 'telefono', 'creado_en']);
-
-        return res.status(201).json({
-            mensaje: 'Cliente registrado exitosamente.',
-            cliente: nuevoCliente
-        });
-
-    } catch (error) {
-        console.error("❌ Error al registrar cliente en PostgreSQL:", error.message);
-        return res.status(500).json({ error: 'Error interno del servidor al guardar el cliente.' });
-    }
-});
-
-/**
- * 🏢 ENDPOINT PARA LISTAR CLIENTES PAGINADOS (CON BUSCADOR OPCIONAL)
- * URL de ejemplo: /api/clientes/paginadas?page=1&limit=10&buscar=Alianza
- */
-app.get('/api/clientes/paginadas', verificarTokenSeguridad, async (req, res) => {
-    try {
-        // 1. Parámetros de paginación y búsqueda
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const buscar = req.query.buscar ? req.query.buscar.trim() : null;
-
-        const offset = (page - 1) * limit;
-
-        console.log(`📋 Consultando clientes paginados: Página ${page}, Límite ${limit}...`);
-
-        // 2. Definición de consultas base con Knex
-        const queryBase = db('public.clientes');
-        const countBase = db('public.clientes').count('id as total');
-
-        // Si viene un término de búsqueda, filtramos por Nombre o RUC de forma insensible a mayúsculas (ILIKE)
-        if (buscar) {
-            queryBase.where(function() {
-                this.where('nombre', 'ILIKE', `%${buscar}%`)
-                    .orWhere('ruc', 'ILIKE', `%${buscar}%`);
-            });
-            countBase.where(function() {
-                this.where('nombre', 'ILIKE', `%${buscar}%`)
-                    .orWhere('ruc', 'ILIKE', `%${buscar}%`);
-            });
-        }
-
-        // 3. Ejecución en paralelo del conteo total y los registros de la página
-        const [totalResultado, clientes] = await Promise.all([
-            countBase.first(),
-            queryBase.select('id', 'nombre', 'ruc', 'telefono', 'creado_en')
-                .orderBy('nombre', 'asc') // Orden alfabético idóneo para listas de clientes
-                .limit(limit)
-                .offset(offset)
-        ]);
-
-        const totalRegistros = parseInt(totalResultado.total);
-        const totalPaginas = Math.ceil(totalRegistros / limit);
-
-        // 4. Estructura unificada para el consumo del Frontend
-        return res.status(200).json({
-            data: clientes,
-            pagination: {
-                total_registros: totalRegistros,
-                total_paginas: totalPaginas,
-                pagina_actual: page,
-                limite_por_pagina: limit,
-                tiene_pagina_anterior: page > 1,
-                tiene_pagina_siguiente: page < totalPaginas
-            }
-        });
-
-    } catch (error) {
-        console.error("❌ Error en el endpoint de clientes paginados:", error.message);
-        return res.status(500).json({ error: 'Error interno del servidor al consultar los clientes.' });
-    }
-});
-
-
-// 🖥️ SERVIR EL FRONTEND (build de Vite) — mismo origen, sin CORS
+// 🖥️ SERVIR EL FRONTEND (build de Vite) — mismo origen, sin CORS en producción
 const distPath = path.resolve(__dirname, '../frontend/dist');
 if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
@@ -446,5 +291,5 @@ if (fs.existsSync(distPath)) {
 }
 
 app.listen(port, () => {
-    console.log(`🚀 Servidor multi-paralelo de alto rendimiento corriendo en http://localhost:${port}`);
+    console.log(`🚀 API Escuela de Fútbol corriendo en http://localhost:${port}`);
 });

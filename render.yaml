@@ -1,0 +1,36 @@
+# Render Blueprint — un solo web service: el backend sirve la API + el build del frontend.
+# Deploy: https://render.com → New → Blueprint → conectar repo escuela-futbol
+services:
+  - type: web
+    name: escuela-futbol
+    runtime: node
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true # Render genera un secreto aleatorio
+      # ── Base de datos Supabase ──────────────────────────────
+      # Usar el POOLER de Supabase (IPv4): Settings → Database →
+      # "Connection string" → modo Session (puerto 6543)
+      # Host: aws-0-<region>.pooler.supabase.com  User: postgres.<project-ref>
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "6543"
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        value: postgres
+      - key: DB_SSL
+        value: "true"
+      # ── Supabase Storage (fotos) ────────────────────────────
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # PORT lo inyecta Render automáticamente

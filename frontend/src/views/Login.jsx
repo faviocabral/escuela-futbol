@@ -1,22 +1,28 @@
 import React, { useState } from 'react';
-import { usuariosMock } from '../mockData';
+import { apiFetch, setToken } from '../api';
 
 export default function Login({ onLogin }) {
     const [usuario, setUsuario] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [cargando, setCargando] = useState(false);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
-        // Mock: valida contra usuariosMock. Luego será una llamada al backend.
-        const encontrado = usuariosMock.find(
-            (u) => u.usuario === usuario.trim().toLowerCase() && u.password === password
-        );
-        if (!encontrado) {
-            setError('Usuario o contraseña incorrectos.');
-            return;
+        setError('');
+        setCargando(true);
+        try {
+            const data = await apiFetch('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({ usuario: usuario.trim(), password }),
+            });
+            setToken(data.token);
+            onLogin(data.usuario);
+        } catch (err) {
+            setError(err.message || 'No se pudo conectar con el servidor.');
+        } finally {
+            setCargando(false);
         }
-        onLogin({ id: encontrado.id, usuario: encontrado.usuario, nombre: encontrado.nombre });
     };
 
     return (
@@ -77,9 +83,10 @@ export default function Login({ onLogin }) {
                                     <button
                                         type="submit"
                                         className="btn btn-primary w-100 fw-semibold shadow-sm py-2"
+                                        disabled={cargando}
                                     >
                                         <i className="bi bi-box-arrow-in-right me-2"></i>
-                                        Iniciar Sesión
+                                        {cargando ? 'Ingresando...' : 'Iniciar Sesión'}
                                     </button>
                                 </div>
                             </div>
@@ -87,9 +94,6 @@ export default function Login({ onLogin }) {
                         </form>
 
                         <div className="mt-4 text-center">
-                            <p className="mb-1 small text-muted">
-                                Demo: <code>admin / admin123</code>
-                            </p>
                             <p className="mb-0 small">
                                 <a href="/asistencia" className="text-decoration-none text-success">
                                     <i className="bi bi-check2-square me-1"></i>

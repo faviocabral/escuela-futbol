@@ -22,7 +22,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim()) return aviso('El nombre de la categoría es obligatorio (Ej: Sub-7).');
 
@@ -33,14 +33,13 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       entrenadorId: form.entrenadorId === '' ? null : Number(form.entrenadorId),
     };
 
-    if (editandoId) {
-      onUpdate({ ...registro, id: editandoId });
-      setEditandoId(null);
-      toast('Categoría actualizada');
-    } else {
-      onAdd(registro);
-      toast('Categoría creada');
-    }
+    const guardado = editandoId
+      ? await onUpdate({ ...registro, id: editandoId })
+      : await onAdd(registro);
+    if (!guardado) return;
+
+    toast(editandoId ? 'Categoría actualizada' : 'Categoría creada');
+    setEditandoId(null);
     setForm(FORM_VACIO);
   };
 
@@ -165,7 +164,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                             <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(c)} title="Editar">
                               <i className="bi bi-pencil"></i>
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar la categoría ${c.nombre}?`)) onDelete(c.id); }} title="Eliminar">
+                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar la categoría ${c.nombre}?`)) await onDelete(c.id); }} title="Eliminar">
                               <i className="bi bi-trash"></i>
                             </button>
                           </td>

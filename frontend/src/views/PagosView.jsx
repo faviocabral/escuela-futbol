@@ -30,7 +30,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
   };
   const categoriaNombre = (id) => categorias.find((c) => c.id === Number(id))?.nombre || '-';
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!jugadorId) return aviso('Selecciona el jugador.');
     if (Number(monto) <= 0) return aviso('El monto debe ser mayor a 0.');
@@ -40,7 +40,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
     );
     if (duplicado) return aviso(`Ya existe un pago registrado para ${jugadorNombre(Number(jugadorId))} en ${MESES[mes - 1]} ${anio}.`);
 
-    onAdd({
+    const guardado = await onAdd({
       jugadorId: Number(jugadorId),
       mes: Number(mes),
       anio: Number(anio),
@@ -48,6 +48,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
       metodo,
       fechaPago: hoy.toISOString().slice(0, 10),
     });
+    if (!guardado) return;
     toast('Pago registrado');
     setJugadorId('');
   };
@@ -202,7 +203,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete }) => 
                         <td>{p.metodo}</td>
                         <td>{p.fechaPago}</td>
                         <td className="px-3 text-end">
-                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar('¿Eliminar este pago?')) onDelete(p.id); }} title="Eliminar">
+                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar('¿Eliminar este pago?')) await onDelete(p.id); }} title="Eliminar">
                             <i className="bi bi-trash"></i>
                           </button>
                         </td>

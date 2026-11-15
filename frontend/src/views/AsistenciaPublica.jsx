@@ -1,37 +1,45 @@
 import React, { useState } from 'react';
-import { useStore, marcarAsistenciaJugador } from '../store';
+import { apiFetch } from '../api';
 import { Avatar } from '../components/Avatar';
 
 // Pantalla pública para padres: marcar asistencia con la cédula del jugador.
 // No requiere login ni da acceso al panel de administración.
 export default function AsistenciaPublica() {
-  const jugadores = useStore((s) => s.jugadores);
-  const categorias = useStore((s) => s.categorias);
-
   const [cedula, setCedula] = useState('');
   const [jugador, setJugador] = useState(null);
   const [error, setError] = useState('');
   const [resultado, setResultado] = useState(null); // 'ok' | 'ya_marcado'
+  const [cargando, setCargando] = useState(false);
 
-  const categoriaNombre = (id) =>
-    categorias.find((c) => c.id === id)?.nombre || 'Sin categoría';
-
-  const buscar = (e) => {
+  const buscar = async (e) => {
     e.preventDefault();
     setError('');
     setResultado(null);
-    const encontrado = jugadores.find((j) => j.documento === cedula.trim());
-    if (!encontrado) {
+    setCargando(true);
+    try {
+      const j = await apiFetch(`/api/public/jugador/${encodeURIComponent(cedula.trim())}`);
+      setJugador(j);
+    } catch (err) {
       setJugador(null);
-      setError('No encontramos un jugador con esa cédula. Verificá el número.');
-      return;
+      setError(err.status === 404 ? 'No encontramos un jugador con esa cédula. Verificá el número.' : 'Error de conexión. Intentá de nuevo.');
+    } finally {
+      setCargando(false);
     }
-    setJugador(encontrado);
   };
 
-  const confirmar = () => {
-    const res = marcarAsistenciaJugador(jugador);
-    setResultado(res === 'ya_marcado' ? 'ya_marcado' : 'ok');
+  const confirmar = async () => {
+    setCargando(true);
+    try {
+      const res = await apiFetch('/api/public/asistencia', {
+        method: 'POST',
+        body: JSON.stringify({ documento: jugador.documento }),
+      });
+      setResultado(res.resultado === 'ya_marcado' ? 'ya_marcado' : 'ok');
+    } catch (err) {
+      setError(err.message || 'Error de conexión. Intentá de nuevo.');
+    } finally {
+      setCargando(false);
+    }
   };
 
   const reiniciar = () => {
@@ -71,7 +79,7 @@ export default function AsistenciaPublica() {
                   inputMode="numeric"
                   autoFocus
                 />
-                <button type="submit" className="btn btn-success px-4">
+                <button type="submit" className="btn btn-success px-4" disabled={cargando}>
                   <i className="bi bi-search"></i>
                 </button>
               </div>
@@ -91,7 +99,7 @@ export default function AsistenciaPublica() {
               </div>
               <h2 className="h5 fw-bold mb-1">{jugador.nombre} {jugador.apellido}</h2>
               <p className="text-muted small mb-1">
-                {categoriaNombre(jugador.categoriaId)} · CI {jugador.documento}
+                {jugador.categoriaNombre || jugador.categoriaId || ''} · CI {jugador.documento}
               </p>
               {!jugador.activo && (
                 <div className="alert alert-warning py-2 small">

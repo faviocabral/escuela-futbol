@@ -1,27 +1,21 @@
 import { useSyncExternalStore } from 'react';
-import {
-  categoriasMock,
-  entrenadoresMock,
-  jugadoresMock,
-  torneosMock,
-  convocatoriasMock,
-  asistenciasMock,
-  pagosMock,
-} from './mockData';
+import { apiFetch } from './api';
+import { aviso } from './utils/notify';
 
-// Store global simple para el mockup: el panel (Dashboard) y la pantalla pública
-// de asistencia comparten los mismos datos sin backend.
-// Cuando conectemos la API/Supabase, esto se reemplaza por llamadas fetch.
+// Store global del panel: cache en memoria de las colecciones traídas de la API.
+// Las vistas leen con useStore(...) y las acciones actualizan el cache + la DB.
 
 let state = {
-  jugadores: jugadoresMock,
-  entrenadores: entrenadoresMock,
-  categorias: categoriasMock,
-  torneos: torneosMock,
-  convocatorias: convocatoriasMock,
-  asistencias: asistenciasMock,
-  pagos: pagosMock,
+  jugadores: [],
+  entrenadores: [],
+  categorias: [],
+  torneos: [],
+  convocatorias: [],
+  asistencias: [],
+  pagos: [],
 };
+
+let cargando = false;
 
 const listeners = new Set();
 const emit = () => listeners.forEach((l) => l());
@@ -34,62 +28,90 @@ const subscribe = (l) => {
 export const useStore = (selector) =>
   useSyncExternalStore(subscribe, () => selector(state));
 
-// Escribir una colección con la misma forma que setState funcional:
-// setJugadores((prev) => [...prev, nuevo])
-export const update = (key, updater) => {
-  state = { ...state, [key]: updater(state[key]) };
+export const useCargando = () => useSyncExternalStore(subscribe, () => cargando);
+
+// Carga inicial de todas las colecciones (se llama al entrar al Dashboard)
+export const cargarDatos = async () => {
+  cargando = true;
   emit();
+  try {
+    const [jugadores, entrenadores, categorias, torneos, convocatorias, asistencias, pagos] =
+      await Promise.all([
+        apiFetch('/api/jugadores'),
+        apiFetch('/api/entrenadores'),
+        apiFetch('/api/categorias'),
+        apiFetch('/api/torneos'),
+        apiFetch('/api/convocatorias'),
+        apiFetch('/api/asistencias'),
+        apiFetch('/api/pagos'),
+      ]);
+    state = { jugadores, entrenadores, categorias, torneos, convocatorias, asistencias, pagos };
+  } finally {
+    cargando = false;
+    emit();
+  }
 };
 
-export const setterFor = (key) => (updater) => update(key, updater);
+// ── Acciones CRUD ─────────────────────────────────────────────
+// Devuelven el registro guardado, o undefined si la API falló (ya muestra el aviso).
 
-const nextId = (lista) => (lista.length ? Math.max(...lista.map((i) => i.id)) + 1 : 1);
+const ejec = (fn) => fn().catch((e) => {
+  aviso(e.message || 'Error de conexión con el servidor.', 'error');
+  return undefined;
+});
 
-const hoy = () => new Date().toISOString().slice(0, 10);
-
-// Marca presente a un jugador en la planilla de entrenamiento de HOY
-// de su categoría (la crea si no existe). Devuelve 'nuevo' | 'actualizado' | 'ya_marcado'.
-export const marcarAsistenciaJugador = (jugador) => {
-  let resultado = 'nuevo';
-  const fechaHoy = hoy();
-
-  update('asistencias', (prev) => {
-    const idx = prev.findIndex(
-      (a) => a.tipo === 'entrenamiento' && a.categoriaId === jugador.categoriaId && a.fecha === fechaHoy
-    );
-
-    if (idx === -1) {
-      return [
-        ...prev,
-        {
-          id: nextId(prev),
-          tipo: 'entrenamiento',
-          fecha: fechaHoy,
-          categoriaId: jugador.categoriaId,
-          torneoId: null,
-          registros: [{ jugadorId: jugador.id, presente: true }],
-        },
-      ];
-    }
-
-    const planilla = prev[idx];
-    const yaMarcado = planilla.registros.some((r) => r.jugadorId === jugador.id && r.presente);
-    if (yaMarcado) {
-      resultado = 'ya_marcado';
-      return prev;
-    }
-
-    resultado = 'actualizado';
-    const registros = planilla.registros.map((r) =>
-      r.jugadorId === jugador.id ? { ...r, presente: true } : r
-    );
-    if (!registros.some((r) => r.jugadorId === jugador.id)) {
-      registros.push({ jugadorId: jugador.id, presente: true });
-    }
-    const copia = [...prev];
-    copia[idx] = { ...planilla, registros };
-    return copia;
+export const crearEn = (key, ruta) => (registro) =>
+  ejec(async () => {
+    const creado = await apiFetch(ruta, { method: 'POST', body: JSON.stringify(registro) });
+    state = { ...state, [key]: [...state[key], creado] };
+    emit();
+    return creado;
   });
 
-  return resultado;
+export const actualizarEn = (key, ruta) => (registro) =>
+  ejec(async () => {
+    const actualizado = await apiFetch(`${ruta}/${registro.id}`, { method: 'PUT', body: JSON.stringify(registro) });
+    state = { ...state, [key]: state[key].map((i) => (i.id === actualizado.id ? actualizado : i)) };
+    emit();
+    return actualizado;
+  });
+
+export const eliminarEn = (key, ruta) => (id) =>
+  ejec(async () => {
+    await apiFetch(`${ruta}/${id}`, { method: 'DELETE' });
+    state = { ...state, [key]: state[key].filter((i) => i.id !== id) };
+    emit();
+    return true;
+  });
+
+// Reemplaza la lista de convocados de un torneo y refresca el cache
+export const guardarConvocatoria = (torneoId, jugadorIds) =>
+  ejec(async () => {
+    await apiFetch(`/api/torneos/${torneoId}/convocatoria`, {
+      method: 'PUT',
+      body: JSON.stringify({ jugadorIds }),
+    });
+    const convocatorias = await apiFetch('/api/convocatorias');
+    state = { ...state, convocatorias };
+    emit();
+    return true;
+  });
+
+// Guarda una planilla de asistencia y refresca el cache
+export const guardarAsistencia = (planilla) =>
+  ejec(async () => {
+    await apiFetch('/api/asistencias', { method: 'POST', body: JSON.stringify(planilla) });
+    const asistencias = await apiFetch('/api/asistencias');
+    state = { ...state, asistencias };
+    emit();
+    return true;
+  });
+
+// Actualiza en el cache la foto recién subida de un jugador
+export const actualizarFotoJugador = (jugadorId, fotoUrl) => {
+  state = {
+    ...state,
+    jugadores: state.jugadores.map((j) => (j.id === jugadorId ? { ...j, foto: fotoUrl } : j)),
+  };
+  emit();
 };

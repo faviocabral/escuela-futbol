@@ -3,6 +3,8 @@ import { Avatar } from '../components/Avatar';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
+import { subirFotoJugador } from '../api';
+import { actualizarFotoJugador } from '../store';
 
 const FORM_VACIO = {
   nombre: '', apellido: '', documento: '', fechaNacimiento: '',
@@ -48,19 +50,30 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.nombre.trim() || !form.apellido.trim()) return aviso('Nombre y apellido son obligatorios.');
     if (!form.categoriaId) return aviso('Selecciona una categoría.');
 
-    const registro = { ...form, categoriaId: Number(form.categoriaId) };
-    if (editandoId) {
-      onUpdate({ ...registro, id: editandoId });
-      toast('Jugador actualizado');
-    } else {
-      onAdd(registro);
-      toast('Jugador registrado');
+    // La foto no va en el body del jugador: se sube aparte a Storage
+    const { foto, ...resto } = form;
+    const registro = { ...resto, categoriaId: Number(form.categoriaId) };
+    const guardado = editandoId
+      ? await onUpdate({ ...registro, id: editandoId })
+      : await onAdd(registro);
+    if (!guardado) return; // el error ya se mostró
+
+    // Si eligió una foto nueva (dataURL), la subimos al Storage
+    if (foto && foto.startsWith('data:')) {
+      try {
+        const { foto: fotoUrl } = await subirFotoJugador(guardado.id, foto);
+        actualizarFotoJugador(guardado.id, fotoUrl);
+      } catch (err) {
+        aviso(`El jugador se guardó pero la foto no pudo subirse: ${err.message}`, 'warning');
+      }
     }
+
+    toast(editandoId ? 'Jugador actualizado' : 'Jugador registrado');
     resetFormulario();
   };
 
@@ -282,7 +295,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                           <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(j)} title="Editar">
                             <i className="bi bi-pencil"></i>
                           </button>
-                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar a ${j.nombre} ${j.apellido}?`)) onDelete(j.id); }} title="Eliminar">
+                          <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar a ${j.nombre} ${j.apellido}?`)) await onDelete(j.id); }} title="Eliminar">
                             <i className="bi bi-trash"></i>
                           </button>
                         </td>
