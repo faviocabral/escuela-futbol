@@ -6,7 +6,8 @@ services:
     name: escuela-futbol-fc
     runtime: node
     plan: free
-    buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
+    # --include=dev: con NODE_ENV=production npm omite devDependencies (vite vive ahí)
+    buildCommand: cd frontend && npm install --include=dev && npm run build && cd ../backend && npm install
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
