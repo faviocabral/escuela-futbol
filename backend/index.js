@@ -290,6 +290,23 @@ if (fs.existsSync(distPath)) {
     console.warn('⚠️ No se encontró frontend/dist. Ejecuta "npm run build" en frontend/ para servir el panel web.');
 }
 
+// Auto-seed: si no hay usuarios, crea el admin inicial (el plan free de Render no tiene Shell)
+async function asegurarAdmin() {
+    try {
+        const existe = await db('usuarios').first();
+        if (existe) return;
+        await db('usuarios').insert({
+            usuario: 'admin',
+            password_hash: await bcrypt.hash('admin123', 10),
+            nombre: 'Administrador',
+        });
+        console.log('✅ Usuario inicial creado: admin / admin123 (cambiar después del primer ingreso)');
+    } catch (err) {
+        console.error('⚠️ No se pudo verificar/crear el usuario admin:', err.message);
+    }
+}
+
 app.listen(port, () => {
     console.log(`🚀 API Escuela de Fútbol corriendo en http://localhost:${port}`);
+    asegurarAdmin();
 });
