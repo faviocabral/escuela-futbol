@@ -2,7 +2,8 @@
 # Deploy: https://render.com → New → Blueprint → conectar repo escuela-futbol
 services:
   - type: web
-    name: escuela-futbol
+    # El subdominio debe ser único en Render — si está tomado, el deploy te pide otro nombre
+    name: escuela-futbol-fc
     runtime: node
     plan: free
     buildCommand: cd frontend && npm install && npm run build && cd ../backend && npm install
