@@ -12,13 +12,16 @@ export const toast = (mensaje, icon = 'success') =>
     timerProgressBar: true,
   });
 
-// Aviso de validación o información (reemplaza alert())
+// Aviso de validación o información — toast con más tiempo de lectura
 export const aviso = (mensaje, icon = 'warning') =>
   Swal.fire({
+    toast: true,
+    position: 'top-end',
     icon,
     title: mensaje,
-    confirmButtonText: 'Entendido',
-    confirmButtonColor: '#0d6efd',
+    showConfirmButton: false,
+    timer: 4500,
+    timerProgressBar: true,
   });
 
 // Confirmación (reemplaza confirm()) — devuelve Promise<boolean>
