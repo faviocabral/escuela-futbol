@@ -298,7 +298,9 @@ const TabJugador = ({ jugador, asistencias, pagos }) => {
   return (
     <>
       <div className="text-center pt-2 pb-3">
-        <Avatar jugador={jugador} size={104} />
+        <div className="d-flex justify-content-center">
+          <Avatar jugador={jugador} size={104} />
+        </div>
         <h5 className="mt-3 mb-0 fw-bold">{jugador.nombre} {jugador.apellido}</h5>
         <div className="text-muted small">{jugador.categoriaNombre}</div>
       </div>
