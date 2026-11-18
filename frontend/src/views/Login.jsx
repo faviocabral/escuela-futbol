@@ -94,15 +94,9 @@ export default function Login({ onLogin }) {
                         </form>
 
                         <div className="mt-4 text-center">
-                            <p className="mb-1 small text-muted">
+                            <p className="mb-0 small text-muted">
                                 <i className="bi bi-person-hearts me-1"></i>
                                 Padres: ingresen con el usuario que les dio la escuela
-                            </p>
-                            <p className="mb-0 small">
-                                <a href="/asistencia" className="text-decoration-none text-success">
-                                    <i className="bi bi-check2-square me-1"></i>
-                                    Asistencia rápida por cédula (sin usuario)
-                                </a>
                             </p>
                         </div>
 

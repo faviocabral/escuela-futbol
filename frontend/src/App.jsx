@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './views/Login';
 import Dashboard from './views/Dashboard';
 import PadreView from './views/PadreView';
-import AsistenciaPublica from './views/AsistenciaPublica';
 import { setToken } from './api';
 
 function App() {
@@ -26,9 +25,6 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Pantalla pública para padres — sin login */}
-        <Route path="/asistencia" element={<AsistenciaPublica />} />
-
         {/* Paneles privados: staff → dashboard, padre → portal propio */}
         <Route
           path="*"

@@ -161,49 +161,7 @@ app.post('/api/login', h(async (req, res) => {
     res.json({ token, usuario: payload });
 }));
 
-// ─────────────────────────────────────────────────────────────
-// 🌐 PÚBLICO — asistencia por cédula (sin login)
-// ─────────────────────────────────────────────────────────────
-// Busca jugador por cédula incluyendo el nombre de su categoría
-const jugadorPorDocumento = (documento) =>
-    db('jugadores')
-        .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
-        .select('jugadores.*', 'categorias.nombre as categoria_nombre')
-        .where({ 'jugadores.documento': documento })
-        .first();
-
 const jugPublicoOut = (j) => ({ ...jugOut(j), categoriaNombre: j.categoria_nombre || 'Sin categoría' });
-
-app.get('/api/public/jugador/:documento', h(async (req, res) => {
-    const j = await jugadorPorDocumento(req.params.documento);
-    if (!j) return res.status(404).json({ error: 'No encontramos un jugador con esa cédula.' });
-    res.json(jugPublicoOut(j));
-}));
-
-app.post('/api/public/asistencia', h(async (req, res) => {
-    const { documento } = req.body || {};
-    const j = await jugadorPorDocumento(documento);
-    if (!j) return res.status(404).json({ error: 'No encontramos un jugador con esa cédula.' });
-    if (!j.activo) return res.status(400).json({ error: 'Este jugador figura como inactivo.' });
-
-    const hoy = new Date().toISOString().slice(0, 10);
-    let planilla = await db('asistencias')
-        .where({ tipo: 'entrenamiento', categoria_id: j.categoria_id, fecha: hoy }).first();
-    if (!planilla) {
-        [planilla] = await db('asistencias')
-            .insert({ tipo: 'entrenamiento', fecha: hoy, categoria_id: j.categoria_id }).returning('*');
-    }
-
-    const yaMarcado = await db('asistencia_registros')
-        .where({ asistencia_id: planilla.id, jugador_id: j.id, presente: true }).first();
-    if (yaMarcado) return res.json({ resultado: 'ya_marcado', jugador: jugPublicoOut(j) });
-
-    await db('asistencia_registros')
-        .insert({ asistencia_id: planilla.id, jugador_id: j.id, presente: true })
-        .onConflict(['asistencia_id', 'jugador_id']).merge({ presente: true });
-
-    res.json({ resultado: 'ok', jugador: jugPublicoOut(j) });
-}));
 
 // ─────────────────────────────────────────────────────────────
 // 📦 CRUD GENÉRICO (jugadores, entrenadores, categorías, torneos)
