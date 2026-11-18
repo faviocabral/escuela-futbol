@@ -108,9 +108,12 @@ const padre = [verificarToken, soloPadre];
 // ─────────────────────────────────────────────────────────────
 // MAPEADORES snake_case (DB) ↔ camelCase (frontend)
 // ─────────────────────────────────────────────────────────────
+// pg devuelve bigint como string → normalizamos ids a Number para las comparaciones del front
+const num = (v) => (v != null ? Number(v) : null);
+
 const jugOut = (j) => ({
-    id: j.id, nombre: j.nombre, apellido: j.apellido, documento: j.documento,
-    fechaNacimiento: j.fecha_nacimiento, categoriaId: j.categoria_id,
+    id: Number(j.id), nombre: j.nombre, apellido: j.apellido, documento: j.documento,
+    fechaNacimiento: j.fecha_nacimiento, categoriaId: num(j.categoria_id),
     tutor: j.tutor, telefonoTutor: j.telefono_tutor, activo: j.activo, foto: j.foto_url,
 });
 const jugIn = (j) => ({
@@ -122,7 +125,7 @@ const jugIn = (j) => ({
 const entIn = (e) => ({ nombre: e.nombre?.trim(), apellido: e.apellido?.trim(), telefono: e.telefono || null, email: e.email || null });
 
 const catOut = (c) => ({
-    id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id,
+    id: Number(c.id), nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: num(c.entrenador_id),
     horaInicio: c.hora_inicio ? String(c.hora_inicio).slice(0, 5) : null,
     horaFin: c.hora_fin ? String(c.hora_fin).slice(0, 5) : null,
     dias: c.dias ? c.dias.split(',').map(Number) : [],
@@ -138,7 +141,7 @@ const catIn = (c) => ({
 
 // "torneos" guarda todo tipo de evento: torneo | amistoso | evento
 const torOut = (t) => ({
-    id: t.id, nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: t.categoria_id,
+    id: Number(t.id), nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: num(t.categoria_id),
     tipo: t.tipo || 'torneo',
     horaInicio: t.hora_inicio ? String(t.hora_inicio).slice(0, 5) : null,
     horaFin: t.hora_fin ? String(t.hora_fin).slice(0, 5) : null,
@@ -150,7 +153,7 @@ const torIn = (t) => ({
 });
 
 const pagoOut = (p) => ({
-    id: p.id, jugadorId: p.jugador_id, mes: p.mes, anio: p.anio, monto: Number(p.monto),
+    id: Number(p.id), jugadorId: Number(p.jugador_id), mes: p.mes, anio: p.anio, monto: Number(p.monto),
     metodo: p.metodo, fechaPago: p.fecha_pago, estado: p.estado || 'confirmado',
     registradoPor: p.registrado_por || 'staff', comprobanteUrl: p.comprobante_url || null,
     nroComprobante: p.nro_comprobante || null, banco: p.banco || null, remitente: p.remitente || null,
@@ -158,9 +161,9 @@ const pagoOut = (p) => ({
 const pagoIn = (p) => ({ jugador_id: p.jugadorId, mes: p.mes, anio: p.anio, monto: p.monto, metodo: p.metodo || null, fecha_pago: p.fechaPago || new Date() });
 
 const asisOut = (a, regs = []) => ({
-    id: a.id, tipo: a.tipo, fecha: a.fecha, categoriaId: a.categoria_id, torneoId: a.torneo_id,
+    id: Number(a.id), tipo: a.tipo, fecha: a.fecha, categoriaId: num(a.categoria_id), torneoId: num(a.torneo_id),
     registros: regs.filter((r) => r.asistencia_id === a.id).map((r) => ({
-        jugadorId: r.jugador_id, presente: r.presente,
+        jugadorId: Number(r.jugador_id), presente: r.presente,
         origen: r.origen || 'staff', estado: r.estado || 'confirmado',
         motivoAusencia: r.motivo_ausencia || null,
     })),
@@ -176,7 +179,7 @@ const hoyAsuncion = () => {
 };
 const minAHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
-const convOut = (c) => ({ id: c.id, torneoId: c.torneo_id, jugadorId: c.jugador_id });
+const convOut = (c) => ({ id: Number(c.id), torneoId: Number(c.torneo_id), jugadorId: Number(c.jugador_id) });
 
 // ─────────────────────────────────────────────────────────────
 // 🔑 LOGIN
@@ -189,7 +192,7 @@ app.post('/api/login', h(async (req, res) => {
     if (!u || !(await bcrypt.compare(password, u.password_hash))) {
         return res.status(401).json({ error: 'Usuario o contraseña incorrectos.' });
     }
-    const payload = { id: u.id, usuario: u.usuario, nombre: u.nombre, rol: u.rol || 'admin', jugadorId: u.jugador_id || null };
+    const payload = { id: Number(u.id), usuario: u.usuario, nombre: u.nombre, rol: u.rol || 'admin', jugadorId: num(u.jugador_id) };
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '12h' });
     res.json({ token, usuario: payload });
 }));
@@ -277,7 +280,7 @@ app.delete('/api/jugadores/:id', ...staff, h(async (req, res) => {
     res.json({ ok: true });
 }));
 
-crud('entrenadores', 'entrenadores', (e) => e, entIn);
+crud('entrenadores', 'entrenadores', (e) => ({ ...e, id: Number(e.id) }), entIn);
 crud('categorias', 'categorias', catOut, catIn, 'edad_min');
 crud('torneos', 'torneos', torOut, torIn, 'fecha');
 
@@ -433,9 +436,11 @@ app.delete('/api/pagos/:id', ...staff, h(async (req, res) => {
 app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
     const j = await db('jugadores')
         .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
+        .leftJoin('entrenadores', 'categorias.entrenador_id', 'entrenadores.id')
         .select('jugadores.*', 'categorias.nombre as categoria_nombre',
             'categorias.hora_inicio', 'categorias.hora_fin', 'categorias.dias',
-            'categorias.lugar')
+            'categorias.lugar',
+            'entrenadores.nombre as entrenador_nombre', 'entrenadores.apellido as entrenador_apellido')
         .where({ 'jugadores.id': req.usuario.jugadorId })
         .first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
@@ -445,6 +450,7 @@ app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
         horaFin: j.hora_fin ? String(j.hora_fin).slice(0, 5) : null,
         diasEntrenamiento: j.dias ? j.dias.split(',').map(Number) : [],
         lugar: j.lugar || null,
+        entrenadorNombre: j.entrenador_nombre ? `${j.entrenador_nombre} ${j.entrenador_apellido || ''}`.trim() : null,
     });
 }));
 

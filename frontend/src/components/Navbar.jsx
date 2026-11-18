@@ -23,7 +23,7 @@ export const Navbar = ({ onToggleSidebar, usuario, onLogout }) => {
             <i className="bi bi-list fs-3"></i>
           </button>
 
-          <span className="navbar-brand text-dark fw-bold m-0 fs-5">
+          <span className="text-dark fw-bold m-0 fs-5">
             Escuela de Fútbol
           </span>
         </div>

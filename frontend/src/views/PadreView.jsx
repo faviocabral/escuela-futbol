@@ -408,7 +408,7 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
       chips.push({
         tipo: 'entrenamiento',
         titulo: `Entrenamiento ${jugador.horaInicio}`,
-        data: { nombre: jugador.categoriaNombre, horaInicio: jugador.horaInicio, horaFin: jugador.horaFin, lugar: jugador.lugar },
+        data: { nombre: jugador.categoriaNombre, horaInicio: jugador.horaInicio, horaFin: jugador.horaFin, lugar: jugador.lugar, entrenador: jugador.entrenadorNombre },
       });
     }
     eventos.filter((e) => e.fecha?.slice(0, 10) === fecha && (tipoFiltro === '' || e.tipo === tipoFiltro))
@@ -514,7 +514,14 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
 
       {selFecha && (
         <div className="mt-3">
-          <DetalleDia fecha={selFecha} chips={chipsPara(selFecha)} acciones={accionesDe} />
+          <DetalleDia
+            fecha={selFecha}
+            chips={chipsPara(selFecha)}
+            acciones={accionesDe}
+            extra={(ev) => ev.data.entrenador ? (
+              <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{ev.data.entrenador}</span>
+            ) : null}
+          />
         </div>
       )}
     </>
