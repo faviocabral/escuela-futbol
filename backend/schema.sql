@@ -29,6 +29,7 @@ create table if not exists categorias (
   hora_inicio time, -- inicio del entrenamiento; null = sin restricción de horario
   hora_fin time,
   dias text, -- días que entrena: '1,3,5' = lun/mié/vie (0=domingo); null = todos
+  lugar text, -- cancha/sede del entrenamiento (Ej: 'Cancha 1')
   creado_en timestamptz not null default now()
 );
 

@@ -126,12 +126,14 @@ const catOut = (c) => ({
     horaInicio: c.hora_inicio ? String(c.hora_inicio).slice(0, 5) : null,
     horaFin: c.hora_fin ? String(c.hora_fin).slice(0, 5) : null,
     dias: c.dias ? c.dias.split(',').map(Number) : [],
+    lugar: c.lugar || null,
 });
 const catIn = (c) => ({
     nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null,
     entrenador_id: c.entrenadorId ?? null,
     hora_inicio: c.horaInicio || null, hora_fin: c.horaFin || null,
     dias: Array.isArray(c.dias) && c.dias.length ? c.dias.join(',') : null,
+    lugar: c.lugar || null,
 });
 
 // "torneos" guarda todo tipo de evento: torneo | amistoso | evento
@@ -432,7 +434,8 @@ app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
     const j = await db('jugadores')
         .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
         .select('jugadores.*', 'categorias.nombre as categoria_nombre',
-            'categorias.hora_inicio', 'categorias.hora_fin', 'categorias.dias')
+            'categorias.hora_inicio', 'categorias.hora_fin', 'categorias.dias',
+            'categorias.lugar')
         .where({ 'jugadores.id': req.usuario.jugadorId })
         .first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
@@ -441,6 +444,7 @@ app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
         horaInicio: j.hora_inicio ? String(j.hora_inicio).slice(0, 5) : null,
         horaFin: j.hora_fin ? String(j.hora_fin).slice(0, 5) : null,
         diasEntrenamiento: j.dias ? j.dias.split(',').map(Number) : [],
+        lugar: j.lugar || null,
     });
 }));
 

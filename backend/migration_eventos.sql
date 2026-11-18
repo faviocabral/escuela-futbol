@@ -10,7 +10,8 @@ end $$;
 
 alter table categorias
   add column if not exists hora_fin time,
-  add column if not exists dias text;
+  add column if not exists dias text,
+  add column if not exists lugar text; -- cancha/sede donde entrena (Ej: 'Cancha 1')
 
 -- Torneos → eventos: torneo | amistoso | evento + horario propio
 alter table torneos

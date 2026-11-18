@@ -3,7 +3,7 @@ import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
 
-const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '', horaInicio: '', horaFin: '', dias: [] };
+const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '', horaInicio: '', horaFin: '', dias: [], lugar: '' };
 
 const DIAS = [
   { v: 1, l: 'Lun' }, { v: 2, l: 'Mar' }, { v: 3, l: 'Mié' },
@@ -60,6 +60,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       horaInicio: c.horaInicio || '',
       horaFin: c.horaFin || '',
       dias: c.dias || [],
+      lugar: c.lugar || '',
     });
     setEditandoId(c.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -111,6 +112,10 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                   <div className="col-6 col-md-2">
                     <label className="form-label small fw-semibold text-secondary">Hora fin</label>
                     <input type="time" name="horaFin" className="form-control" value={form.horaFin} onChange={handleChange} />
+                  </div>
+                  <div className="col-6 col-md-2">
+                    <label className="form-label small fw-semibold text-secondary">Cancha / lugar</label>
+                    <input type="text" name="lugar" className="form-control" value={form.lugar} onChange={handleChange} placeholder="Ej: Cancha 1" />
                   </div>
                   <div className="col-12">
                     <label className="form-label small fw-semibold text-secondary">Días de entrenamiento</label>
@@ -199,9 +204,12 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                           <td>
                             {c.horaInicio
                               ? (
-                                <span className="badge bg-info-subtle text-info-emphasis" title={c.dias?.length ? `Días: ${c.dias.map((d) => DIAS.find((x) => x.v === d)?.l).join(', ')}` : 'Todos los días'}>
-                                  <i className="bi bi-clock me-1"></i>{c.horaInicio}{c.horaFin ? `–${c.horaFin}` : ''}
-                                </span>
+                                <>
+                                  <span className="badge bg-info-subtle text-info-emphasis" title={c.dias?.length ? `Días: ${c.dias.map((d) => DIAS.find((x) => x.v === d)?.l).join(', ')}` : 'Todos los días'}>
+                                    <i className="bi bi-clock me-1"></i>{c.horaInicio}{c.horaFin ? `–${c.horaFin}` : ''}
+                                  </span>
+                                  {c.lugar && <div className="small text-muted mt-1"><i className="bi bi-geo-alt me-1"></i>{c.lugar}</div>}
+                                </>
                               )
                               : <span className="text-muted small">-</span>}
                           </td>

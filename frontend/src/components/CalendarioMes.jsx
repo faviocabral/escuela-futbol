@@ -17,6 +17,69 @@ export const TIPO_LABEL = {
   entrenamiento: 'Entrenamiento', torneo: 'Torneo', amistoso: 'Amistoso', evento: 'Evento',
 };
 
+// Barra lateral del bloque en el detalle del día (mismo color que el badge)
+const TIPO_BARRA = {
+  entrenamiento: 'bg-primary', torneo: 'bg-warning',
+  amistoso: 'bg-success', evento: 'bg-secondary',
+};
+
+const fmtFecha = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
+
+// Detalle del día como timeline vertical: los bloques se agrupan por hora de
+// inicio y se apilan uno debajo del otro cuando comparten horario.
+// extra(ev) → nodo extra en la línea de info; acciones(ev) → nodo bajo el bloque.
+export const DetalleDia = ({ fecha, chips, extra, acciones }) => {
+  const grupos = new Map();
+  chips.forEach((ev) => {
+    const h = ev.data?.horaInicio || '';
+    if (!grupos.has(h)) grupos.set(h, []);
+    grupos.get(h).push(ev);
+  });
+  const horas = [...grupos.keys()].sort();
+
+  return (
+    <div className="card shadow-sm border-0">
+      <div className="card-header bg-white py-2 fw-bold border-bottom small">
+        <i className="bi bi-list-ul text-primary me-2"></i>{fmtFecha(fecha)}
+      </div>
+      <div className="card-body p-2">
+        {chips.length === 0 ? (
+          <div className="text-muted small py-4 text-center">Sin actividades este día.</div>
+        ) : (
+          horas.map((h) => (
+            <div key={h || 'sin-hora'} className="d-flex">
+              <div className="text-end text-muted fw-semibold small pe-2 pt-2 flex-shrink-0" style={{ width: '52px' }}>
+                {h || '—'}
+              </div>
+              <div className="flex-fill border-start ps-2 pb-1">
+                {grupos.get(h).map((ev, i) => (
+                  <div key={i} className="d-flex rounded border bg-white mb-2 overflow-hidden">
+                    <div className={`${TIPO_BARRA[ev.tipo] || TIPO_BARRA.evento} flex-shrink-0`} style={{ width: '4px' }}></div>
+                    <div className="flex-fill p-2">
+                      <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                        <span className={`badge ${TIPO_COLOR[ev.tipo]}`}>{TIPO_LABEL[ev.tipo]}</span>
+                        <span className="fw-semibold small">{ev.data.nombre}</span>
+                      </div>
+                      <div className="small text-muted">
+                        {ev.data.horaInicio && (
+                          <><i className="bi bi-clock me-1"></i>{ev.data.horaInicio}{ev.data.horaFin ? ` – ${ev.data.horaFin}` : ''} hs</>
+                        )}
+                        {ev.data.lugar && <span className="ms-2"><i className="bi bi-geo-alt me-1"></i>{ev.data.lugar}</span>}
+                        {extra?.(ev)}
+                      </div>
+                      {acciones?.(ev)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const aAAA_MM_DD = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
