@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Login from './views/Login';
 import Dashboard from './views/Dashboard';
+import PadreView from './views/PadreView';
 import AsistenciaPublica from './views/AsistenciaPublica';
 import { setToken } from './api';
 
@@ -28,14 +29,16 @@ function App() {
         {/* Pantalla pública para padres — sin login */}
         <Route path="/asistencia" element={<AsistenciaPublica />} />
 
-        {/* Panel privado */}
+        {/* Paneles privados: staff → dashboard, padre → portal propio */}
         <Route
           path="*"
           element={
-            usuario ? (
-              <Dashboard usuario={usuario} onLogout={handleLogout} />
-            ) : (
+            !usuario ? (
               <Login onLogin={handleLogin} />
+            ) : usuario.rol === 'padre' ? (
+              <PadreView usuario={usuario} onLogout={handleLogout} />
+            ) : (
+              <Dashboard usuario={usuario} onLogout={handleLogout} />
             )
           }
         />

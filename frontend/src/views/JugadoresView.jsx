@@ -9,6 +9,7 @@ import { actualizarFotoJugador } from '../store';
 const FORM_VACIO = {
   nombre: '', apellido: '', documento: '', fechaNacimiento: '',
   categoriaId: '', tutor: '', telefonoTutor: '', activo: true, foto: null,
+  accesoPadre: null, crearAcceso: false, accesoUsuario: '', accesoPassword: '', quitarAcceso: false,
 };
 
 const calcularEdad = (fechaNacimiento) => {
@@ -55,9 +56,17 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
     if (!form.nombre.trim() || !form.apellido.trim()) return aviso('Nombre y apellido son obligatorios.');
     if (!form.categoriaId) return aviso('Selecciona una categoría.');
 
+    if (form.crearAcceso && !form.accesoUsuario.trim()) return aviso('Indicá el usuario del padre.');
+    if (form.crearAcceso && !editandoId && !form.accesoPassword) return aviso('Indicá la contraseña para el acceso del padre.');
+
     // La foto no va en el body del jugador: se sube aparte a Storage
-    const { foto, ...resto } = form;
+    const { foto, accesoPadre, crearAcceso, accesoUsuario, accesoPassword, quitarAcceso, ...resto } = form;
     const registro = { ...resto, categoriaId: Number(form.categoriaId) };
+    if (quitarAcceso) {
+      registro.accesoPadre = { eliminar: true };
+    } else if (crearAcceso && (accesoUsuario || accesoPassword)) {
+      registro.accesoPadre = { usuario: accesoUsuario, password: accesoPassword || undefined };
+    }
     const guardado = editandoId
       ? await onUpdate({ ...registro, id: editandoId })
       : await onAdd(registro);
@@ -78,7 +87,14 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
   };
 
   const handleEditar = (j) => {
-    setForm({ ...j, categoriaId: String(j.categoriaId) });
+    setForm({
+      ...j,
+      categoriaId: String(j.categoriaId),
+      crearAcceso: !!j.accesoPadre,
+      accesoUsuario: j.accesoPadre || '',
+      accesoPassword: '',
+      quitarAcceso: false,
+    });
     setEditandoId(j.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -196,6 +212,70 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                     <label className="form-label small fw-semibold text-secondary">Teléfono del Tutor</label>
                     <input type="text" name="telefonoTutor" className="form-control" value={form.telefonoTutor} onChange={handleChange} placeholder="Ej: 0981-123456" />
                   </div>
+
+                  {/* Acceso del padre al portal (asistencia + pagos) */}
+                  <div className="col-12">
+                    <div className="border rounded p-3 bg-light-subtle">
+                      <div className="form-check form-switch mb-0">
+                        <input
+                          className="form-check-input" type="checkbox" id="accesoPadreCheck"
+                          checked={form.crearAcceso}
+                          onChange={(e) => setForm((prev) => ({
+                            ...prev,
+                            crearAcceso: e.target.checked,
+                            accesoUsuario: e.target.checked && !prev.accesoUsuario ? (prev.documento || '') : prev.accesoUsuario,
+                            quitarAcceso: false,
+                          }))}
+                        />
+                        <label className="form-check-label small fw-semibold text-secondary" htmlFor="accesoPadreCheck">
+                          <i className="bi bi-key me-1"></i>
+                          {form.accesoPadre ? `Acceso del padre: ${form.accesoPadre}` : 'Dar acceso al portal del padre'}
+                        </label>
+                      </div>
+                      {form.crearAcceso && (
+                        <div className="row g-2 mt-1">
+                          <div className="col-6 col-md-4">
+                            <label className="form-label small fw-semibold text-secondary mb-1">Usuario</label>
+                            <input
+                              type="text" className="form-control form-control-sm"
+                              value={form.accesoUsuario}
+                              onChange={(e) => setForm((prev) => ({ ...prev, accesoUsuario: e.target.value }))}
+                              placeholder="Ej: cédula del tutor"
+                            />
+                          </div>
+                          <div className="col-6 col-md-4">
+                            <label className="form-label small fw-semibold text-secondary mb-1">
+                              Contraseña {form.accesoPadre ? '(vacía = sin cambio)' : '*'}
+                            </label>
+                            <input
+                              type="text" className="form-control form-control-sm"
+                              value={form.accesoPassword}
+                              onChange={(e) => setForm((prev) => ({ ...prev, accesoPassword: e.target.value }))}
+                              placeholder={form.accesoPadre ? 'Nueva contraseña' : 'Ej: ci o fecha nac.'}
+                            />
+                          </div>
+                          {form.accesoPadre && (
+                            <div className="col-12 col-md-4 d-flex align-items-end">
+                              <button
+                                type="button" className="btn btn-sm btn-outline-danger"
+                                onClick={() => setForm((prev) => ({ ...prev, quitarAcceso: true, crearAcceso: false }))}
+                              >
+                                <i className="bi bi-trash me-1"></i>Quitar acceso
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      {form.quitarAcceso && (
+                        <div className="small text-danger mt-1">
+                          <i className="bi bi-exclamation-triangle me-1"></i>
+                          El acceso se eliminará al guardar.{' '}
+                          <a href="#" onClick={(e) => { e.preventDefault(); setForm((prev) => ({ ...prev, quitarAcceso: false, crearAcceso: true })); }}>Deshacer</a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="col-12 d-flex align-items-center justify-content-between">
                     <div className="form-check form-switch">
                       <input className="form-check-input" type="checkbox" name="activo" id="jugadorActivo" checked={form.activo} onChange={handleChange} />
@@ -277,6 +357,7 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
                           <div className="d-flex align-items-center gap-2">
                             <Avatar jugador={j} size={36} />
                             <span>{j.nombre} {j.apellido}</span>
+                            {j.accesoPadre && <i className="bi bi-key-fill text-warning" title={`Acceso padre: ${j.accesoPadre}`}></i>}
                           </div>
                         </td>
                         <td>{j.documento || '-'}</td>

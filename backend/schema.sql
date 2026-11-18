@@ -6,6 +6,8 @@ create table if not exists usuarios (
   usuario text not null unique,
   password_hash text not null,
   nombre text not null,
+  rol text not null default 'admin', -- admin/staff vs padre
+  jugador_id bigint, -- se completa luego de crear jugadores (references agregada abajo)
   creado_en timestamptz not null default now()
 );
 
@@ -71,6 +73,8 @@ create table if not exists asistencia_registros (
   asistencia_id bigint not null references asistencias(id) on delete cascade,
   jugador_id bigint not null references jugadores(id) on delete cascade,
   presente boolean not null default false,
+  origen text not null default 'staff', -- staff | padre
+  motivo_ausencia text,
   unique (asistencia_id, jugador_id)
 );
 
@@ -82,8 +86,22 @@ create table if not exists pagos (
   monto numeric(12,0) not null default 0,
   metodo text,
   fecha_pago date not null default current_date,
-  unique (jugador_id, mes, anio)
+  estado text not null default 'confirmado', -- pendiente | confirmado | rechazado
+  registrado_por text not null default 'staff', -- staff | padre
+  comprobante_url text,
+  nro_comprobante text,
+  banco text,
+  remitente text
 );
+
+-- Un pago vigente por jugador/período; los rechazados no bloquean el reenvío
+create unique index if not exists pagos_unico_vigente
+  on pagos (jugador_id, mes, anio) where estado <> 'rechazado';
+
+do $$ begin
+  alter table usuarios
+    add constraint usuarios_jugador_fk foreign key (jugador_id) references jugadores(id) on delete set null;
+exception when duplicate_object then null; end $$;
 
 create index if not exists idx_jugadores_categoria on jugadores(categoria_id);
 create index if not exists idx_asis_reg_planilla on asistencia_registros(asistencia_id);

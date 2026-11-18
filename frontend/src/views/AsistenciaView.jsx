@@ -61,22 +61,25 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
 
   const guardar = async () => {
     if (jugadoresLista.length === 0) return aviso('No hay jugadores en la lista.');
+    // Conserva el motivo/origen que cargó el padre si el jugador sigue ausente
+    const existente = asistencias.find((a) =>
+      modo === 'torneo'
+        ? a.torneoId === Number(torneoId)
+        : a.tipo === 'entrenamiento' && a.categoriaId === Number(categoriaId) && a.fecha === fecha
+    );
+    const registros = jugadoresLista.map((j) => {
+      const prev = existente?.registros.find((r) => r.jugadorId === j.id);
+      const presente = !!marcas[j.id];
+      return {
+        jugadorId: j.id, presente,
+        origen: prev?.origen === 'padre' && !presente ? 'padre' : 'staff',
+        motivoAusencia: presente ? null : prev?.motivoAusencia || null,
+      };
+    });
     const planilla =
       modo === 'torneo'
-        ? {
-            tipo: 'torneo',
-            torneoId: torneoSel.id,
-            categoriaId: torneoSel.categoriaId,
-            fecha: torneoSel.fecha,
-            registros: jugadoresLista.map((j) => ({ jugadorId: j.id, presente: !!marcas[j.id] })),
-          }
-        : {
-            tipo: 'entrenamiento',
-            torneoId: null,
-            categoriaId: Number(categoriaId),
-            fecha,
-            registros: jugadoresLista.map((j) => ({ jugadorId: j.id, presente: !!marcas[j.id] })),
-          };
+        ? { tipo: 'torneo', torneoId: torneoSel.id, categoriaId: torneoSel.categoriaId, fecha: torneoSel.fecha, registros }
+        : { tipo: 'entrenamiento', torneoId: null, categoriaId: Number(categoriaId), fecha, registros };
     const ok = await onSave(planilla);
     if (!ok) return;
     aviso(`Asistencia guardada: ${planilla.registros.filter((r) => r.presente).length}/${planilla.registros.length} presentes.`, 'success');
@@ -222,6 +225,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                   ) : (
                     pag.cortar(historial).map((a) => {
                       const presentes = a.registros.filter((r) => r.presente).length;
+                      const ausentesConMotivo = a.registros.filter((r) => !r.presente && r.motivoAusencia);
                       const torneo = a.torneoId ? torneos.find((t) => t.id === a.torneoId) : null;
                       return (
                         <tr key={a.id}>
@@ -242,6 +246,15 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                               title={a.registros.filter((r) => r.presente).map((r) => jugadorNombre(r.jugadorId)).join(', ')}>
                               {a.registros.filter((r) => r.presente).map((r) => jugadorNombre(r.jugadorId)).join(', ') || 'Sin presentes'}
                             </div>
+                            {ausentesConMotivo.length > 0 && (
+                              <div
+                                className="text-truncate text-danger-emphasis" style={{ maxWidth: '280px' }}
+                                title={ausentesConMotivo.map((r) => `${jugadorNombre(r.jugadorId)}: ${r.motivoAusencia}`).join(' · ')}
+                              >
+                                <i className="bi bi-chat-left-text me-1"></i>
+                                {ausentesConMotivo.map((r) => `${jugadorNombre(r.jugadorId)} (${r.motivoAusencia})`).join(', ')}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );

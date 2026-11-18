@@ -10,7 +10,7 @@ import { PagosView } from './PagosView';
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
-  guardarConvocatoria, guardarAsistencia,
+  guardarConvocatoria, guardarAsistencia, cambiarEstadoPago,
 } from '../store';
 import { aviso } from '../utils/notify';
 
@@ -117,6 +117,8 @@ export default function Dashboard({ usuario, onLogout }) {
             categorias={categorias}
             onAdd={crearEn('pagos', '/api/pagos')}
             onDelete={eliminarEn('pagos', '/api/pagos')}
+            onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
+            onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
           />
         );
       default:

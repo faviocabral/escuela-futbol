@@ -107,6 +107,15 @@ export const guardarAsistencia = (planilla) =>
     return true;
   });
 
+// Confirma o rechaza un pago pendiente (el padre subió el comprobante)
+export const cambiarEstadoPago = (id, accion) =>
+  ejec(async () => {
+    const actualizado = await apiFetch(`/api/pagos/${id}/${accion}`, { method: 'PUT', body: JSON.stringify({}) });
+    state = { ...state, pagos: state.pagos.map((p) => (p.id === id ? actualizado : p)) };
+    emit();
+    return actualizado;
+  });
+
 // Actualiza en el cache la foto recién subida de un jugador
 export const actualizarFotoJugador = (jugadorId, fotoUrl) => {
   state = {
