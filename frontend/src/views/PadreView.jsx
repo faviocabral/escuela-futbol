@@ -275,27 +275,64 @@ const TabPagos = ({ jugador, pagos, onPagoSubido }) => {
 };
 
 // ── Tab: Mi Jugador ─────────────────────────────────────────
-const TabJugador = ({ jugador }) => (
-  <div className="card shadow-sm border-0">
-    <div className="card-body text-center py-4">
-      <Avatar jugador={jugador} size={96} />
-      <h5 className="mt-3 mb-1 fw-bold">{jugador.nombre} {jugador.apellido}</h5>
-      <div className="badge bg-primary-subtle text-primary mb-3">{jugador.categoriaNombre}</div>
-      <div className="row text-start small mt-3 mx-auto" style={{ maxWidth: '320px' }}>
-        <div className="col-6 text-muted">Documento</div>
-        <div className="col-6 fw-medium">{jugador.documento || '-'}</div>
-        <div className="col-6 text-muted">Nacimiento</div>
-        <div className="col-6 fw-medium">{formatearFecha(jugador.fechaNacimiento?.slice(0, 10))}</div>
-        <div className="col-6 text-muted">Tutor</div>
-        <div className="col-6 fw-medium">{jugador.tutor || '-'}</div>
-        <div className="col-6 text-muted">Teléfono</div>
-        <div className="col-6 fw-medium">{jugador.telefonoTutor || '-'}</div>
-        <div className="col-6 text-muted">Estado</div>
-        <div className="col-6"><span className={`badge ${jugador.activo ? 'bg-success' : 'bg-secondary'}`}>{jugador.activo ? 'Activo' : 'Inactivo'}</span></div>
-      </div>
-    </div>
+const StatItem = ({ valor, label }) => (
+  <div className="flex-fill text-center px-2" style={{ borderRight: '1px solid rgba(255,255,255,.25)' }}>
+    <div className="fw-bold fs-5">{valor}</div>
+    <div className="small" style={{ fontSize: '11px', opacity: 0.85 }}>{label}</div>
   </div>
 );
+
+const InfoRow = ({ icon, label, valor }) => (
+  <div className="d-flex align-items-center py-3 border-bottom">
+    <i className={`bi ${icon} text-success fs-5 me-3`} style={{ width: '22px' }}></i>
+    <span className="text-secondary small flex-fill">{label}</span>
+    <span className="fw-medium small text-end">{valor}</span>
+  </div>
+);
+
+const TabJugador = ({ jugador, asistencias, pagos }) => {
+  const presentes = asistencias.filter((a) => a.presente).length;
+  const ausentes = asistencias.filter((a) => !a.presente).length;
+  const pagosOk = pagos.filter((p) => p.estado === 'confirmado').length;
+
+  return (
+    <>
+      <div className="text-center pt-2 pb-3">
+        <Avatar jugador={jugador} size={104} />
+        <h5 className="mt-3 mb-0 fw-bold">{jugador.nombre} {jugador.apellido}</h5>
+        <div className="text-muted small">{jugador.categoriaNombre}</div>
+      </div>
+
+      <div
+        className="d-flex rounded-3 shadow-sm mx-2 mb-4 py-3 text-white"
+        style={{ background: 'linear-gradient(135deg, #3aa381, #2e8b6d)' }}
+      >
+        <StatItem valor={presentes} label="Presentes" />
+        <StatItem valor={ausentes} label="Ausentes" />
+        <div className="flex-fill text-center px-2">
+          <div className="fw-bold fs-5">{pagosOk}</div>
+          <div className="small" style={{ fontSize: '11px', opacity: 0.85 }}>Pagos confirmados</div>
+        </div>
+      </div>
+
+      <div className="card shadow-sm border-0 mx-2">
+        <div className="card-body px-3 py-1">
+          <InfoRow icon="bi-card-text" label="Documento" valor={jugador.documento || '-'} />
+          <InfoRow icon="bi-calendar-event" label="Nacimiento" valor={formatearFecha(jugador.fechaNacimiento?.slice(0, 10))} />
+          <InfoRow icon="bi-person" label="Tutor" valor={jugador.tutor || '-'} />
+          <InfoRow icon="bi-telephone" label="Teléfono" valor={jugador.telefonoTutor || '-'} />
+          <div className="d-flex align-items-center py-3">
+            <i className="bi bi-check-circle text-success fs-5 me-3" style={{ width: '22px' }}></i>
+            <span className="text-secondary small flex-fill">Estado</span>
+            <span className={`badge ${jugador.activo ? 'bg-success' : 'bg-secondary'}`}>
+              {jugador.activo ? 'Activo' : 'Inactivo'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+};
 
 // ── Portal principal ────────────────────────────────────────
 export default function PadreView({ usuario, onLogout }) {
@@ -376,7 +413,7 @@ export default function PadreView({ usuario, onLogout }) {
       <div className="container py-3" style={{ maxWidth: '560px' }}>
         {vista === 'asistencia' && <TabAsistencia jugador={jugador} asistencias={asistencias} onMarcar={marcar} />}
         {vista === 'pagos' && <TabPagos jugador={jugador} pagos={pagos} onPagoSubido={(p) => setPagos((prev) => [p, ...prev])} />}
-        {vista === 'jugador' && <TabJugador jugador={jugador} />}
+        {vista === 'jugador' && <TabJugador jugador={jugador} asistencias={asistencias} pagos={pagos} />}
       </div>
 
       {/* Navegación inferior fija — pensada para celular */}
