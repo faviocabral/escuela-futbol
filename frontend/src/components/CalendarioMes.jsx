@@ -48,13 +48,13 @@ export const DetalleDia = ({ fecha, chips, extra, acciones }) => {
         ) : (
           horas.map((h) => (
             <div key={h || 'sin-hora'} className="d-flex">
-              <div className="text-end text-muted fw-semibold small pe-2 flex-shrink-0" style={{ width: '52px', paddingTop: '15px' }}>
+              <div className="text-end text-muted fw-semibold small pe-2 flex-shrink-0" style={{ width: '52px' }}>
                 {h || '—'}
               </div>
               <div className="flex-fill border-start ps-3 pb-2 position-relative">
                 <span
                   className="position-absolute rounded-circle bg-white border border-2 d-flex align-items-center justify-content-center"
-                  style={{ width: '14px', height: '14px', left: '-8px', top: '17px', borderColor: '#adb5bd' }}
+                  style={{ width: '14px', height: '14px', left: '-8px', top: '3px', borderColor: '#adb5bd' }}
                 >
                   <span className="rounded-circle" style={{ width: '4px', height: '4px', backgroundColor: '#adb5bd' }}></span>
                 </span>
