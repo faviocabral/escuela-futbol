@@ -395,6 +395,15 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
   const [motivoEv, setMotivoEv] = useState('');
   const [enviando, setEnviando] = useState(false);
   const hoy = hoyLocal();
+  const detalleRef = useRef(null);
+
+  // Si el detalle quedó fuera de pantalla (mobile), bajar suave hasta él
+  useEffect(() => {
+    const el = detalleRef.current;
+    if (selFecha && el && el.getBoundingClientRect().top > window.innerHeight) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selFecha]);
 
   const diasTxt = jugador.diasEntrenamiento?.length
     ? jugador.diasEntrenamiento.map((d) => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')
@@ -513,7 +522,7 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
       />
 
       {selFecha && (
-        <div className="mt-3">
+        <div className="mt-3" ref={detalleRef} style={{ scrollMarginTop: '76px' }}>
           <DetalleDia
             fecha={selFecha}
             chips={chipsPara(selFecha)}

@@ -38,7 +38,8 @@ export const DetalleDia = ({ fecha, chips, extra, acciones }) => {
   const horas = [...grupos.keys()].sort();
 
   return (
-    <div className="card shadow-sm border-0">
+    <div className="card shadow-sm border-0" key={fecha} style={{ animation: 'detalleDiaIn .25s ease-out' }}>
+      <style>{'@keyframes detalleDiaIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }'}</style>
       <div className="card-header bg-white py-2 fw-bold border-bottom small">
         <i className="bi bi-list-ul text-primary me-2"></i>{fmtFecha(fecha)}
       </div>

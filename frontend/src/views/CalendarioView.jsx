@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CalendarioMes, DetalleDia, TIPO_LABEL } from '../components/CalendarioMes';
 
 // Calendario del staff: entrenamientos recurrentes (días+horario de cada
@@ -6,6 +6,15 @@ import { CalendarioMes, DetalleDia, TIPO_LABEL } from '../components/CalendarioM
 export const CalendarioView = ({ categorias, entrenadores, torneos }) => {
   const [selFecha, setSelFecha] = useState(null);
   const [tipoFiltro, setTipoFiltro] = useState('');
+  const detalleRef = useRef(null);
+
+  // En mobile el detalle queda bajo el calendario → scroll suave hasta él
+  useEffect(() => {
+    const el = detalleRef.current;
+    if (selFecha && el && el.getBoundingClientRect().top > window.innerHeight) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [selFecha]);
 
   const chipsPara = (fecha) => {
     const dow = new Date(`${fecha}T12:00:00`).getDay();
@@ -64,6 +73,7 @@ export const CalendarioView = ({ categorias, entrenadores, torneos }) => {
               </div>
             </div>
           ) : (
+            <div ref={detalleRef} style={{ scrollMarginTop: '72px' }}>
             <DetalleDia
               fecha={selFecha}
               chips={chipsPara(selFecha)}
@@ -75,6 +85,7 @@ export const CalendarioView = ({ categorias, entrenadores, torneos }) => {
                 ) : null
               }
             />
+            </div>
           )}
         </div>
       </div>
