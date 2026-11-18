@@ -6,7 +6,8 @@ export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSide
     { id: 'jugadores', label: 'Jugadores', icon: 'bi-person-arms-up' },
     { id: 'entrenadores', label: 'Entrenadores', icon: 'bi-person-badge' },
     { id: 'categorias', label: 'Categorías', icon: 'bi-diagram-3' },
-    { id: 'torneos', label: 'Torneos', icon: 'bi-trophy' },
+    { id: 'calendario', label: 'Calendario', icon: 'bi-calendar3' },
+    { id: 'torneos', label: 'Eventos', icon: 'bi-trophy' },
     { id: 'asistencia', label: 'Asistencia', icon: 'bi-check2-square' },
     { id: 'pagos', label: 'Pagos', icon: 'bi-cash-coin' },
   ];

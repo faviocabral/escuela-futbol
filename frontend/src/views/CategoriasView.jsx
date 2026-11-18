@@ -3,7 +3,12 @@ import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
 
-const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '', horaEntrenamiento: '' };
+const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '', horaInicio: '', horaFin: '', dias: [] };
+
+const DIAS = [
+  { v: 1, l: 'Lun' }, { v: 2, l: 'Mar' }, { v: 3, l: 'Mié' },
+  { v: 4, l: 'Jue' }, { v: 5, l: 'Vie' }, { v: 6, l: 'Sáb' }, { v: 0, l: 'Dom' },
+];
 
 export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onUpdate, onDelete }) => {
   const [form, setForm] = useState(FORM_VACIO);
@@ -31,7 +36,9 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       edadMin: form.edadMin === '' ? null : Number(form.edadMin),
       edadMax: form.edadMax === '' ? null : Number(form.edadMax),
       entrenadorId: form.entrenadorId === '' ? null : Number(form.entrenadorId),
-      horaEntrenamiento: form.horaEntrenamiento || null,
+      horaInicio: form.horaInicio || null,
+      horaFin: form.horaFin || null,
+      dias: form.dias,
     };
 
     const guardado = editandoId
@@ -50,7 +57,9 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       edadMin: c.edadMin ?? '',
       edadMax: c.edadMax ?? '',
       entrenadorId: c.entrenadorId ? String(c.entrenadorId) : '',
-      horaEntrenamiento: c.horaEntrenamiento || '',
+      horaInicio: c.horaInicio || '',
+      horaFin: c.horaFin || '',
+      dias: c.dias || [],
     });
     setEditandoId(c.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -95,10 +104,34 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                       ))}
                     </select>
                   </div>
-                  <div className="col-6 col-md-3">
-                    <label className="form-label small fw-semibold text-secondary">Horario de inicio</label>
-                    <input type="time" name="horaEntrenamiento" className="form-control" value={form.horaEntrenamiento} onChange={handleChange} />
-                    <div className="form-text small">Los padres marcan 1h antes a 30 min después</div>
+                  <div className="col-6 col-md-2">
+                    <label className="form-label small fw-semibold text-secondary">Hora inicio</label>
+                    <input type="time" name="horaInicio" className="form-control" value={form.horaInicio} onChange={handleChange} />
+                  </div>
+                  <div className="col-6 col-md-2">
+                    <label className="form-label small fw-semibold text-secondary">Hora fin</label>
+                    <input type="time" name="horaFin" className="form-control" value={form.horaFin} onChange={handleChange} />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label small fw-semibold text-secondary">Días de entrenamiento</label>
+                    <div className="d-flex gap-2 flex-wrap">
+                      {DIAS.map((d) => (
+                        <div key={d.v} className="form-check form-check-inline">
+                          <input
+                            className="form-check-input" type="checkbox" id={`dia-${d.v}`}
+                            checked={form.dias.includes(d.v)}
+                            onChange={() => setForm((prev) => ({
+                              ...prev,
+                              dias: prev.dias.includes(d.v)
+                                ? prev.dias.filter((x) => x !== d.v)
+                                : [...prev.dias, d.v].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b)),
+                            }))}
+                          />
+                          <label className="form-check-label small" htmlFor={`dia-${d.v}`}>{d.l}</label>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="form-text small">Vacío = todos los días. Los padres marcan 1h antes a 30 min después del inicio.</div>
                   </div>
                   <div className="col-12 d-flex justify-content-end gap-2">
                     {editandoId && (
@@ -164,8 +197,12 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                           </td>
                           <td>{ent || <span className="text-muted small">Sin asignar</span>}</td>
                           <td>
-                            {c.horaEntrenamiento
-                              ? <span className="badge bg-info-subtle text-info-emphasis"><i className="bi bi-clock me-1"></i>{c.horaEntrenamiento} hs</span>
+                            {c.horaInicio
+                              ? (
+                                <span className="badge bg-info-subtle text-info-emphasis" title={c.dias?.length ? `Días: ${c.dias.map((d) => DIAS.find((x) => x.v === d)?.l).join(', ')}` : 'Todos los días'}>
+                                  <i className="bi bi-clock me-1"></i>{c.horaInicio}{c.horaFin ? `–${c.horaFin}` : ''}
+                                </span>
+                              )
                               : <span className="text-muted small">-</span>}
                           </td>
                           <td>

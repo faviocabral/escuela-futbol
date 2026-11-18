@@ -26,7 +26,9 @@ create table if not exists categorias (
   edad_min smallint,
   edad_max smallint,
   entrenador_id bigint references entrenadores(id) on delete set null,
-  hora_entrenamiento time, -- inicio del entrenamiento; null = sin restricción de horario
+  hora_inicio time, -- inicio del entrenamiento; null = sin restricción de horario
+  hora_fin time,
+  dias text, -- días que entrena: '1,3,5' = lun/mié/vie (0=domingo); null = todos
   creado_en timestamptz not null default now()
 );
 
@@ -44,12 +46,16 @@ create table if not exists jugadores (
   creado_en timestamptz not null default now()
 );
 
+-- "torneos" se usa como tabla de eventos: torneo | amistoso | evento
 create table if not exists torneos (
   id bigint generated always as identity primary key,
   nombre text not null,
   fecha date not null,
   lugar text,
   categoria_id bigint references categorias(id) on delete set null,
+  tipo text not null default 'torneo',
+  hora_inicio time,
+  hora_fin time,
   creado_en timestamptz not null default now()
 );
 

@@ -3,11 +3,18 @@ import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
 
-const FORM_VACIO = { nombre: '', fecha: '', lugar: '', categoriaId: '' };
+const FORM_VACIO = { nombre: '', fecha: '', lugar: '', categoriaId: '', tipo: 'torneo', horaInicio: '', horaFin: '' };
+
+const TIPOS = [
+  { v: 'torneo', l: 'Torneo', badge: 'bg-warning-subtle text-warning-emphasis' },
+  { v: 'amistoso', l: 'Amistoso', badge: 'bg-success-subtle text-success-emphasis' },
+  { v: 'evento', l: 'Evento', badge: 'bg-secondary-subtle text-secondary-emphasis' },
+];
+const tipoInfo = (t) => TIPOS.find((x) => x.v === t) || TIPOS[2];
 
 const formatearFecha = (iso) => {
   if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
+  const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 };
 
@@ -31,23 +38,23 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.nombre.trim()) return aviso('El nombre del torneo es obligatorio.');
-    if (!form.fecha) return aviso('Selecciona la fecha del torneo.');
+    if (!form.nombre.trim()) return aviso('El nombre del evento es obligatorio.');
+    if (!form.fecha) return aviso('Selecciona la fecha del evento.');
     if (!form.categoriaId) return aviso('Selecciona la categoría participante.');
 
-    const registro = { ...form, categoriaId: Number(form.categoriaId) };
+    const registro = { ...form, categoriaId: Number(form.categoriaId), horaInicio: form.horaInicio || null, horaFin: form.horaFin || null };
     const guardado = editandoId
       ? await onUpdate({ ...registro, id: editandoId })
       : await onAdd(registro);
     if (!guardado) return;
 
-    toast(editandoId ? 'Torneo actualizado' : 'Torneo agendado');
+    toast(editandoId ? 'Evento actualizado' : 'Evento agendado');
     setEditandoId(null);
     setForm(FORM_VACIO);
   };
 
   const handleEditar = (t) => {
-    setForm({ nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: String(t.categoriaId) });
+    setForm({ nombre: t.nombre, fecha: t.fecha?.slice(0, 10), lugar: t.lugar, categoriaId: String(t.categoriaId), tipo: t.tipo || 'torneo', horaInicio: t.horaInicio || '', horaFin: t.horaFin || '' });
     setEditandoId(t.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -93,20 +100,34 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
           <div className="card shadow-sm border-0">
             <div className="card-header bg-white py-3 fw-bold border-bottom">
               <i className="bi bi-trophy text-primary me-2"></i>
-              {editandoId ? 'Editar Torneo' : 'Nuevo Torneo'}
+              {editandoId ? 'Editar Evento' : 'Nuevo Evento'}
             </div>
             <div className="card-body">
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
-                  <div className="col-12 col-md-4">
-                    <label className="form-label small fw-semibold text-secondary">Nombre del torneo *</label>
+                  <div className="col-12 col-md-3">
+                    <label className="form-label small fw-semibold text-secondary">Nombre del evento *</label>
                     <input type="text" name="nombre" className="form-control" value={form.nombre} onChange={handleChange} placeholder="Ej: Copa Primavera" />
+                  </div>
+                  <div className="col-6 col-md-2">
+                    <label className="form-label small fw-semibold text-secondary">Tipo</label>
+                    <select name="tipo" className="form-select" value={form.tipo} onChange={handleChange}>
+                      {TIPOS.map((t) => <option key={t.v} value={t.v}>{t.l}</option>)}
+                    </select>
                   </div>
                   <div className="col-6 col-md-2">
                     <label className="form-label small fw-semibold text-secondary">Fecha *</label>
                     <input type="date" name="fecha" className="form-control" value={form.fecha} onChange={handleChange} />
                   </div>
-                  <div className="col-6 col-md-3">
+                  <div className="col-3 col-md-1">
+                    <label className="form-label small fw-semibold text-secondary">Inicio</label>
+                    <input type="time" name="horaInicio" className="form-control" value={form.horaInicio} onChange={handleChange} />
+                  </div>
+                  <div className="col-3 col-md-1">
+                    <label className="form-label small fw-semibold text-secondary">Fin</label>
+                    <input type="time" name="horaFin" className="form-control" value={form.horaFin} onChange={handleChange} />
+                  </div>
+                  <div className="col-12 col-md-3">
                     <label className="form-label small fw-semibold text-secondary">Lugar / Sede</label>
                     <input type="text" name="lugar" className="form-control" value={form.lugar} onChange={handleChange} placeholder="Ej: Club Nacional" />
                   </div>
@@ -124,7 +145,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                       </button>
                     )}
                     <button type="submit" className="btn btn-primary px-4 fw-medium">
-                      {editandoId ? 'Guardar Cambios' : 'Agendar Torneo'}
+                      {editandoId ? 'Guardar Cambios' : 'Agendar Evento'}
                     </button>
                   </div>
                 </div>
@@ -187,7 +208,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
             <div className="card-header bg-white py-3 border-bottom">
               <div className="row g-2 align-items-center">
                 <div className="col-12 col-md-4 fw-bold">
-                  <i className="bi bi-calendar-event text-success me-2"></i> Calendario de Torneos
+                  <i className="bi bi-calendar-event text-success me-2"></i> Eventos agendados
                   <span className="badge bg-secondary ms-2">{filtrados.length}</span>
                 </div>
                 <div className="col-12 col-md-8">
@@ -210,7 +231,9 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                 <thead className="table-light">
                   <tr>
                     <th className="px-3">Fecha</th>
-                    <th>Torneo</th>
+                    <th>Evento</th>
+                    <th>Tipo</th>
+                    <th>Horario</th>
                     <th>Lugar</th>
                     <th>Categoría</th>
                     <th>Convocados</th>
@@ -220,13 +243,13 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                 <tbody>
                   {filtrados.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="text-center text-muted py-5">
-                        No hay torneos agendados.
+                      <td colSpan="7" className="text-center text-muted py-5">
+                        No hay eventos agendados.
                       </td>
                     </tr>
                   ) : (
                     pag.cortar(filtrados).map((t) => {
-                      const pasado = t.fecha < new Date().toISOString().slice(0, 10);
+                      const pasado = t.fecha?.slice(0, 10) < new Date().toISOString().slice(0, 10);
                       return (
                         <tr key={t.id}>
                           <td className="px-3">
@@ -235,6 +258,8 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                             </span>
                           </td>
                           <td className="fw-semibold">{t.nombre}</td>
+                          <td><span className={`badge ${tipoInfo(t.tipo).badge}`}>{tipoInfo(t.tipo).l}</span></td>
+                          <td>{t.horaInicio ? `${t.horaInicio}${t.horaFin ? `–${t.horaFin}` : ''}` : '-'}</td>
                           <td>{t.lugar || '-'}</td>
                           <td><span className="badge bg-primary-subtle text-primary">{categoriaNombre(t.categoriaId)}</span></td>
                           <td>
@@ -247,7 +272,7 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                             <button className="btn btn-sm btn-outline-primary me-1" onClick={() => handleEditar(t)} title="Editar">
                               <i className="bi bi-pencil"></i>
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar el torneo "${t.nombre}"?`)) await onDelete(t.id); }} title="Eliminar">
+                            <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar(`¿Eliminar "${t.nombre}"?`)) await onDelete(t.id); }} title="Eliminar">
                               <i className="bi bi-trash"></i>
                             </button>
                           </td>

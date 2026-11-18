@@ -121,11 +121,31 @@ const jugIn = (j) => ({
 
 const entIn = (e) => ({ nombre: e.nombre?.trim(), apellido: e.apellido?.trim(), telefono: e.telefono || null, email: e.email || null });
 
-const catOut = (c) => ({ id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id, horaEntrenamiento: c.hora_entrenamiento ? String(c.hora_entrenamiento).slice(0, 5) : null });
-const catIn = (c) => ({ nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null, entrenador_id: c.entrenadorId ?? null, hora_entrenamiento: c.horaEntrenamiento || null });
+const catOut = (c) => ({
+    id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id,
+    horaInicio: c.hora_inicio ? String(c.hora_inicio).slice(0, 5) : null,
+    horaFin: c.hora_fin ? String(c.hora_fin).slice(0, 5) : null,
+    dias: c.dias ? c.dias.split(',').map(Number) : [],
+});
+const catIn = (c) => ({
+    nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null,
+    entrenador_id: c.entrenadorId ?? null,
+    hora_inicio: c.horaInicio || null, hora_fin: c.horaFin || null,
+    dias: Array.isArray(c.dias) && c.dias.length ? c.dias.join(',') : null,
+});
 
-const torOut = (t) => ({ id: t.id, nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: t.categoria_id });
-const torIn = (t) => ({ nombre: t.nombre?.trim(), fecha: t.fecha, lugar: t.lugar || null, categoria_id: t.categoriaId ?? null });
+// "torneos" guarda todo tipo de evento: torneo | amistoso | evento
+const torOut = (t) => ({
+    id: t.id, nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: t.categoria_id,
+    tipo: t.tipo || 'torneo',
+    horaInicio: t.hora_inicio ? String(t.hora_inicio).slice(0, 5) : null,
+    horaFin: t.hora_fin ? String(t.hora_fin).slice(0, 5) : null,
+});
+const torIn = (t) => ({
+    nombre: t.nombre?.trim(), fecha: t.fecha, lugar: t.lugar || null,
+    categoria_id: t.categoriaId ?? null, tipo: t.tipo || 'torneo',
+    hora_inicio: t.horaInicio || null, hora_fin: t.horaFin || null,
+});
 
 const pagoOut = (p) => ({
     id: p.id, jugadorId: p.jugador_id, mes: p.mes, anio: p.anio, monto: Number(p.monto),
@@ -411,11 +431,43 @@ app.delete('/api/pagos/:id', ...staff, h(async (req, res) => {
 app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
     const j = await db('jugadores')
         .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
-        .select('jugadores.*', 'categorias.nombre as categoria_nombre', 'categorias.hora_entrenamiento')
+        .select('jugadores.*', 'categorias.nombre as categoria_nombre',
+            'categorias.hora_inicio', 'categorias.hora_fin', 'categorias.dias')
         .where({ 'jugadores.id': req.usuario.jugadorId })
         .first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
-    res.json({ ...jugPublicoOut(j), horaEntrenamiento: j.hora_entrenamiento ? String(j.hora_entrenamiento).slice(0, 5) : null });
+    res.json({
+        ...jugPublicoOut(j),
+        horaInicio: j.hora_inicio ? String(j.hora_inicio).slice(0, 5) : null,
+        horaFin: j.hora_fin ? String(j.hora_fin).slice(0, 5) : null,
+        diasEntrenamiento: j.dias ? j.dias.split(',').map(Number) : [],
+    });
+}));
+
+// Eventos (torneo/amistoso/otro) de su categoría: si está convocado y si ya marcó
+app.get('/api/padre/eventos', ...padre, h(async (req, res) => {
+    const j = await db('jugadores').where({ id: req.usuario.jugadorId }).first();
+    if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
+
+    const [eventos, convs, regs] = await Promise.all([
+        db('torneos').where({ categoria_id: j.categoria_id }).orWhereNull('categoria_id').orderBy('fecha'),
+        db('convocatorias').where({ jugador_id: j.id }),
+        db('asistencia_registros')
+            .join('asistencias', 'asistencia_registros.asistencia_id', 'asistencias.id')
+            .whereNotNull('asistencias.torneo_id')
+            .where({ 'asistencia_registros.jugador_id': j.id })
+            .select('asistencias.torneo_id', 'asistencia_registros.presente',
+                'asistencia_registros.estado', 'asistencia_registros.motivo_ausencia'),
+    ]);
+
+    res.json(eventos.map((e) => {
+        const reg = regs.find((r) => r.torneo_id === e.id);
+        return {
+            ...torOut(e),
+            convocado: convs.some((c) => c.torneo_id === e.id),
+            miMarca: reg ? { presente: reg.presente, estado: reg.estado, motivoAusencia: reg.motivo_ausencia } : null,
+        };
+    }));
 }));
 
 // Historial de asistencia de su jugador (últimas 30 marcas)
@@ -437,10 +489,10 @@ app.get('/api/padre/asistencias', ...padre, h(async (req, res) => {
     })));
 }));
 
-// Marca asistencia o justifica la ausencia de hoy (o la fecha indicada)
-// body: { estado: 'presente'|'ausente', motivo?, fecha? }
+// Marca asistencia o justifica la ausencia — entrenamiento (hoy) o evento convocado
+// body: { estado: 'presente'|'ausente', motivo?, fecha?, torneoId? }
 app.post('/api/padre/asistencia', ...padre, h(async (req, res) => {
-    const { estado, motivo, fecha } = req.body || {};
+    const { estado, motivo, fecha, torneoId } = req.body || {};
     if (!['presente', 'ausente'].includes(estado)) {
         return res.status(400).json({ error: "Estado inválido: usá 'presente' o 'ausente'." });
     }
@@ -449,31 +501,53 @@ app.post('/api/padre/asistencia', ...padre, h(async (req, res) => {
     }
     const j = await db('jugadores')
         .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
-        .select('jugadores.*', 'categorias.hora_entrenamiento')
+        .select('jugadores.*', 'categorias.hora_inicio', 'categorias.dias')
         .where({ 'jugadores.id': req.usuario.jugadorId }).first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
     if (!j.activo) return res.status(400).json({ error: 'Este jugador figura como inactivo.' });
 
-    // Ventana de marcado: 1h antes hasta 30 min después del inicio del entrenamiento.
-    // Solo aplica a marcar PRESENCIA; justificar ausencia se permite en cualquier momento.
-    if (estado === 'presente' && j.hora_entrenamiento && !fecha) {
-        const [hh, mm] = String(j.hora_entrenamiento).slice(0, 5).split(':').map(Number);
-        const inicio = hh * 60 + mm;
-        const ahora = ahoraAsuncion();
-        const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
-        if (ahoraMin < inicio - 60 || ahoraMin > inicio + 30) {
-            return res.status(400).json({
-                error: `Fuera de horario: la asistencia se puede marcar entre ${minAHHMM(inicio - 60)} y ${minAHHMM(inicio + 30)} hs. El entrenador o el administrador puede marcarla en otro momento.`,
-            });
-        }
-    }
+    let planilla;
 
-    const dia = fecha || hoyAsuncion();
-    let planilla = await db('asistencias')
-        .where({ tipo: 'entrenamiento', categoria_id: j.categoria_id, fecha: dia }).first();
-    if (!planilla) {
-        [planilla] = await db('asistencias')
-            .insert({ tipo: 'entrenamiento', fecha: dia, categoria_id: j.categoria_id }).returning('*');
+    if (torneoId) {
+        // Evento: debe estar convocado; la marca queda pendiente de confirmación del staff
+        const evento = await db('torneos').where({ id: torneoId }).first();
+        if (!evento) return res.status(404).json({ error: 'Evento no encontrado.' });
+        const convocado = await db('convocatorias').where({ torneo_id: torneoId, jugador_id: j.id }).first();
+        if (!convocado) return res.status(400).json({ error: 'Este jugador no está convocado a ese evento.' });
+
+        planilla = await db('asistencias').where({ torneo_id: torneoId }).first();
+        if (!planilla) {
+            [planilla] = await db('asistencias')
+                .insert({ tipo: 'torneo', fecha: evento.fecha, categoria_id: evento.categoria_id, torneo_id: torneoId })
+                .returning('*');
+        }
+    } else {
+        // Entrenamiento: ventana 1h antes → 30 min después del inicio (solo para PRESENTE;
+        // justificar ausencia se permite en cualquier momento)
+        const ahora = ahoraAsuncion();
+        if (estado === 'presente' && !fecha) {
+            if (j.dias && !j.dias.split(',').map(Number).includes(ahora.getDay())) {
+                return res.status(400).json({ error: 'Hoy no es día de entrenamiento de esta categoría.' });
+            }
+            if (j.hora_inicio) {
+                const [hh, mm] = String(j.hora_inicio).slice(0, 5).split(':').map(Number);
+                const inicio = hh * 60 + mm;
+                const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
+                if (ahoraMin < inicio - 60 || ahoraMin > inicio + 30) {
+                    return res.status(400).json({
+                        error: `Fuera de horario: la asistencia se puede marcar entre ${minAHHMM(inicio - 60)} y ${minAHHMM(inicio + 30)} hs. El entrenador o el administrador puede marcarla en otro momento.`,
+                    });
+                }
+            }
+        }
+
+        const dia = fecha || hoyAsuncion();
+        planilla = await db('asistencias')
+            .where({ tipo: 'entrenamiento', categoria_id: j.categoria_id, fecha: dia }).first();
+        if (!planilla) {
+            [planilla] = await db('asistencias')
+                .insert({ tipo: 'entrenamiento', fecha: dia, categoria_id: j.categoria_id }).returning('*');
+        }
     }
 
     const anterior = await db('asistencia_registros')

@@ -7,6 +7,7 @@ import { CategoriasView } from './CategoriasView';
 import { TorneosView } from './TorneosView';
 import { AsistenciaView } from './AsistenciaView';
 import { PagosView } from './PagosView';
+import { CalendarioView } from './CalendarioView';
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
@@ -18,7 +19,8 @@ const TITULOS = {
   jugadores: 'Jugadores',
   entrenadores: 'Entrenadores',
   categorias: 'Categorías',
-  torneos: 'Torneos',
+  calendario: 'Calendario',
+  torneos: 'Eventos',
   asistencia: 'Asistencia',
   pagos: 'Pagos',
 };
@@ -83,6 +85,14 @@ export default function Dashboard({ usuario, onLogout }) {
             onAdd={crearEn('categorias', '/api/categorias')}
             onUpdate={actualizarEn('categorias', '/api/categorias')}
             onDelete={eliminarEn('categorias', '/api/categorias')}
+          />
+        );
+      case 'calendario':
+        return (
+          <CalendarioView
+            categorias={categorias}
+            entrenadores={entrenadores}
+            torneos={torneos}
           />
         );
       case 'torneos':

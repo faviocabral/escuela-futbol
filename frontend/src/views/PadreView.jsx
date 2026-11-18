@@ -3,6 +3,7 @@ import { apiFetch } from '../api';
 import { Avatar } from '../components/Avatar';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
+import { CalendarioMes, TIPO_COLOR, TIPO_LABEL } from '../components/CalendarioMes';
 import { aviso, toast } from '../utils/notify';
 
 const MESES = [
@@ -54,7 +55,7 @@ const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
               <div className="fw-bold">{jugador.nombre} {jugador.apellido}</div>
               <div className="small text-muted">
                 {jugador.categoriaNombre}
-                {jugador.horaEntrenamiento && <> · entrena {jugador.horaEntrenamiento} hs</>}
+                {jugador.horaInicio && <> · {jugador.horaInicio}{jugador.horaFin ? `–${jugador.horaFin}` : ''} hs</>}
                 {' '}· Hoy {formatearFecha(hoy)}
               </div>
             </div>
@@ -349,25 +350,126 @@ const TabJugador = ({ jugador, asistencias, pagos }) => {
   );
 };
 
+// ── Tab: Calendario ─────────────────────────────────────────
+const TabCalendario = ({ jugador, eventos, onMarcarEvento }) => {
+  const [sel, setSel] = useState(null); // evento seleccionado
+  const [motivoEv, setMotivoEv] = useState('');
+  const [modoEv, setModoEv] = useState(null);
+
+  const diasTxt = jugador.diasEntrenamiento?.length
+    ? jugador.diasEntrenamiento.map((d) => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')
+    : 'Todos los días';
+
+  const chipsPara = (fecha) => {
+    const chips = [];
+    const dow = new Date(`${fecha}T12:00:00`).getDay();
+    const dias = jugador.diasEntrenamiento?.length ? jugador.diasEntrenamiento : [0, 1, 2, 3, 4, 5, 6];
+    if (jugador.horaInicio && dias.includes(dow)) {
+      chips.push({ tipo: 'entrenamiento', titulo: `${jugador.horaInicio} Entrenamiento`, data: { tipoEvento: 'entrenamiento' } });
+    }
+    eventos.filter((e) => e.fecha?.slice(0, 10) === fecha)
+      .forEach((e) => chips.push({ tipo: e.tipo, titulo: `${e.horaInicio ? e.horaInicio + ' ' : ''}${e.nombre}`, data: e }));
+    return chips;
+  };
+
+  const marcarEvento = async (estado) => {
+    if (estado === 'ausente' && !motivoEv.trim()) return aviso('Contanos el motivo.');
+    await onMarcarEvento(sel.data.id, estado, estado === 'ausente' ? motivoEv.trim() : null);
+    setModoEv(null);
+    setMotivoEv('');
+  };
+
+  return (
+    <>
+      {jugador.horaInicio && (
+        <div className="alert alert-light border small py-2 mb-3">
+          <i className="bi bi-clock me-1 text-primary"></i>
+          Entrenamiento {jugador.categoriaNombre}: <b>{diasTxt}</b> · {jugador.horaInicio}{jugador.horaFin ? `–${jugador.horaFin}` : ''} hs
+        </div>
+      )}
+
+      <CalendarioMes
+        eventosPara={chipsPara}
+        onEventoClick={(ev) => { if (ev.tipo !== 'entrenamiento') { setSel(ev); setModoEv(null); setMotivoEv(''); } }}
+        onDiaClick={() => setSel(null)}
+      />
+
+      {sel && (
+        <div className="card shadow-sm border-0 mt-3">
+          <div className="card-body">
+            <div className="d-flex align-items-center gap-2 mb-2">
+              <span className={`badge ${TIPO_COLOR[sel.tipo]}`}>{TIPO_LABEL[sel.tipo]}</span>
+              <span className="fw-bold">{sel.data.nombre}</span>
+            </div>
+            <div className="small text-muted mb-2">
+              <i className="bi bi-calendar-event me-1"></i>{formatearFecha(sel.data.fecha)}
+              {sel.data.horaInicio && <> · <i className="bi bi-clock ms-1 me-1"></i>{sel.data.horaInicio}{sel.data.horaFin ? `–${sel.data.horaFin}` : ''} hs</>}
+              {sel.data.lugar && <> · <i className="bi bi-geo-alt ms-1 me-1"></i>{sel.data.lugar}</>}
+            </div>
+
+            {sel.data.convocado ? (
+              <>
+                {sel.data.miMarca && (
+                  <div className={`alert py-2 small mb-2 ${sel.data.miMarca.presente ? 'alert-success' : 'alert-warning'}`}>
+                    {sel.data.miMarca.presente ? 'Confirmaste asistencia' : `Ausencia justificada: ${sel.data.miMarca.motivoAusencia || ''}`}
+                    {sel.data.miMarca.estado === 'pendiente' && ' (en revisión)'}
+                  </div>
+                )}
+                {modoEv === 'ausente' ? (
+                  <>
+                    <textarea
+                      className="form-control mb-2" rows="2" autoFocus
+                      placeholder="Motivo de la ausencia..."
+                      value={motivoEv} onChange={(e) => setMotivoEv(e.target.value)}
+                    />
+                    <div className="d-flex gap-2">
+                      <button className="btn btn-danger flex-fill" onClick={() => marcarEvento('ausente')}>Confirmar ausencia</button>
+                      <button className="btn btn-outline-secondary" onClick={() => setModoEv(null)}>Volver</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-success flex-fill" onClick={() => marcarEvento('presente')}>
+                      <i className="bi bi-check2 me-1"></i>Asistirá
+                    </button>
+                    <button className="btn btn-outline-danger flex-fill" onClick={() => setModoEv('ausente')}>
+                      <i className="bi bi-x-circle me-1"></i>No asistirá
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="small text-muted"><i className="bi bi-info-circle me-1"></i>Tu jugador no está convocado a este evento.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 // ── Portal principal ────────────────────────────────────────
 export default function PadreView({ usuario, onLogout }) {
   const [vista, setVista] = useState('asistencia');
   const [jugador, setJugador] = useState(null);
   const [asistencias, setAsistencias] = useState([]);
   const [pagos, setPagos] = useState([]);
+  const [eventos, setEventos] = useState([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
     (async () => {
       try {
-        const [j, a, p] = await Promise.all([
+        const [j, a, p, e] = await Promise.all([
           apiFetch('/api/padre/jugador'),
           apiFetch('/api/padre/asistencias'),
           apiFetch('/api/padre/pagos'),
+          apiFetch('/api/padre/eventos'),
         ]);
         setJugador(j);
         setAsistencias(a);
         setPagos(p);
+        setEventos(e);
       } catch (e) {
         setError(e.message);
       }
@@ -383,6 +485,19 @@ export default function PadreView({ usuario, onLogout }) {
       if (r.resultado === 'ya_marcado') aviso('Ya estaba marcado como presente.');
       else toast(estado === 'presente' ? 'Asistencia registrada' : 'Ausencia justificada');
       setAsistencias(await apiFetch('/api/padre/asistencias'));
+    } catch (e) {
+      aviso(e.message, 'error');
+    }
+  };
+
+  const marcarEvento = async (torneoId, estado, motivo) => {
+    try {
+      await apiFetch('/api/padre/asistencia', {
+        method: 'POST',
+        body: JSON.stringify({ torneoId, estado, motivo }),
+      });
+      toast(estado === 'presente' ? 'Asistencia al evento confirmada' : 'Ausencia al evento justificada');
+      setEventos(await apiFetch('/api/padre/eventos'));
     } catch (e) {
       aviso(e.message, 'error');
     }
@@ -410,6 +525,7 @@ export default function PadreView({ usuario, onLogout }) {
 
   const TABS = [
     { id: 'asistencia', icon: 'bi-check2-square', label: 'Asistencia' },
+    { id: 'calendario', icon: 'bi-calendar3', label: 'Calendario' },
     { id: 'pagos', icon: 'bi-credit-card', label: 'Pagos' },
     { id: 'jugador', icon: 'bi-person', label: 'Mi jugador' },
   ];
@@ -427,6 +543,7 @@ export default function PadreView({ usuario, onLogout }) {
 
       <div className="container py-3" style={{ maxWidth: '560px' }}>
         {vista === 'asistencia' && <TabAsistencia jugador={jugador} asistencias={asistencias} onMarcar={marcar} />}
+        {vista === 'calendario' && <TabCalendario jugador={jugador} eventos={eventos} onMarcarEvento={marcarEvento} />}
         {vista === 'pagos' && <TabPagos jugador={jugador} pagos={pagos} onPagoSubido={(p) => setPagos((prev) => [p, ...prev])} />}
         {vista === 'jugador' && <TabJugador jugador={jugador} asistencias={asistencias} pagos={pagos} />}
       </div>
