@@ -119,11 +119,11 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
                     <label className="form-label small fw-semibold text-secondary">Fecha *</label>
                     <input type="date" name="fecha" className="form-control" value={form.fecha} onChange={handleChange} />
                   </div>
-                  <div className="col-3 col-md-1">
+                  <div className="col-6 col-md-2">
                     <label className="form-label small fw-semibold text-secondary">Inicio</label>
                     <input type="time" name="horaInicio" className="form-control" value={form.horaInicio} onChange={handleChange} />
                   </div>
-                  <div className="col-3 col-md-1">
+                  <div className="col-6 col-md-2">
                     <label className="form-label small fw-semibold text-secondary">Fin</label>
                     <input type="time" name="horaFin" className="form-control" value={form.horaFin} onChange={handleChange} />
                   </div>
