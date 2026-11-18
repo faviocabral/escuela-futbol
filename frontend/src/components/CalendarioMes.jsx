@@ -60,7 +60,7 @@ export const CalendarioMes = ({ eventosPara, onEventoClick, onDiaClick, diaSelec
         </div>
         <div className="d-grid" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
           {celdas.map((dia, i) => {
-            if (!dia) return <div key={i} className="border-0" style={{ minHeight: '62px' }}></div>;
+            if (!dia) return <div key={i} className="border-0" style={{ height: '84px' }}></div>;
             const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
             const chips = eventosPara ? eventosPara(fecha) : [];
             const esHoy = fecha === hoyStr;
@@ -69,7 +69,7 @@ export const CalendarioMes = ({ eventosPara, onEventoClick, onDiaClick, diaSelec
               <div
                 key={i}
                 className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'bg-light' : ''}`}
-                style={{ minHeight: '62px', cursor: 'pointer', fontSize: '11px' }}
+                style={{ height: '84px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px' }}
                 onClick={() => onDiaClick?.(fecha)}
               >
                 <div className={`fw-semibold ${esHoy ? 'text-primary' : 'text-muted'}`}>{dia}</div>

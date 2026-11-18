@@ -351,10 +351,49 @@ const TabJugador = ({ jugador, asistencias, pagos }) => {
 };
 
 // ── Tab: Calendario ─────────────────────────────────────────
-const TabCalendario = ({ jugador, eventos, onMarcarEvento }) => {
-  const [sel, setSel] = useState(null); // evento seleccionado
+const BotonesMarcado = ({ itemKey, miMarca, labelOk, modoEv, setModoEv, motivo, setMotivo, enviando, onAccion }) => (
+  <div className="mt-2">
+    {miMarca && (
+      <div className={`alert py-2 small mb-2 ${miMarca.presente ? 'alert-success' : 'alert-warning'}`}>
+        {miMarca.presente
+          ? 'Confirmaste asistencia'
+          : <>Ausencia justificada{miMarca.motivoAusencia ? `: ${miMarca.motivoAusencia}` : ''}</>}
+        {miMarca.estado === 'pendiente' && ' (en revisión)'}
+      </div>
+    )}
+    {modoEv === itemKey ? (
+      <>
+        <textarea
+          className="form-control mb-2" rows="2" autoFocus
+          placeholder="Motivo de la ausencia..."
+          value={motivo} onChange={(e) => setMotivo(e.target.value)}
+        />
+        <div className="d-flex gap-2">
+          <button className="btn btn-danger btn-sm flex-fill" disabled={enviando} onClick={() => onAccion('ausente')}>
+            Confirmar ausencia
+          </button>
+          <button className="btn btn-outline-secondary btn-sm" onClick={() => setModoEv(null)}>Volver</button>
+        </div>
+      </>
+    ) : (
+      <div className="d-flex gap-2">
+        <button className="btn btn-success btn-sm flex-fill" disabled={enviando || miMarca?.presente} onClick={() => onAccion('presente')}>
+          <i className="bi bi-check2 me-1"></i>{labelOk}
+        </button>
+        <button className="btn btn-outline-danger btn-sm flex-fill" disabled={enviando} onClick={() => { setMotivo(''); setModoEv(itemKey); }}>
+          <i className="bi bi-x-circle me-1"></i>No asistirá
+        </button>
+      </div>
+    )}
+  </div>
+);
+
+const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento }) => {
+  const [selFecha, setSelFecha] = useState(null);
+  const [modoEv, setModoEv] = useState(null); // clave del ítem en modo 'ausente'
   const [motivoEv, setMotivoEv] = useState('');
-  const [modoEv, setModoEv] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const hoy = hoyLocal();
 
   const diasTxt = jugador.diasEntrenamiento?.length
     ? jugador.diasEntrenamiento.map((d) => ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][d]).join(', ')
@@ -365,18 +404,31 @@ const TabCalendario = ({ jugador, eventos, onMarcarEvento }) => {
     const dow = new Date(`${fecha}T12:00:00`).getDay();
     const dias = jugador.diasEntrenamiento?.length ? jugador.diasEntrenamiento : [0, 1, 2, 3, 4, 5, 6];
     if (jugador.horaInicio && dias.includes(dow)) {
-      chips.push({ tipo: 'entrenamiento', titulo: `${jugador.horaInicio} Entrenamiento`, data: { tipoEvento: 'entrenamiento' } });
+      chips.push({
+        tipo: 'entrenamiento',
+        titulo: `Entrenamiento ${jugador.horaInicio}`,
+        data: { nombre: jugador.categoriaNombre, horaInicio: jugador.horaInicio, horaFin: jugador.horaFin },
+      });
     }
     eventos.filter((e) => e.fecha?.slice(0, 10) === fecha)
       .forEach((e) => chips.push({ tipo: e.tipo, titulo: `${e.horaInicio ? e.horaInicio + ' ' : ''}${e.nombre}`, data: e }));
     return chips;
   };
 
-  const marcarEvento = async (estado) => {
+  const chipsSel = selFecha ? chipsPara(selFecha) : [];
+  const marcaDe = (fecha) =>
+    asistencias.find((a) => a.fecha?.slice(0, 10) === fecha && a.tipo === 'entrenamiento');
+
+  const ejecutar = async (accion, estado) => {
     if (estado === 'ausente' && !motivoEv.trim()) return aviso('Contanos el motivo.');
-    await onMarcarEvento(sel.data.id, estado, estado === 'ausente' ? motivoEv.trim() : null);
-    setModoEv(null);
-    setMotivoEv('');
+    setEnviando(true);
+    try {
+      await accion(estado, estado === 'ausente' ? motivoEv.trim() : null);
+      setModoEv(null);
+      setMotivoEv('');
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -390,57 +442,79 @@ const TabCalendario = ({ jugador, eventos, onMarcarEvento }) => {
 
       <CalendarioMes
         eventosPara={chipsPara}
-        onEventoClick={(ev) => { if (ev.tipo !== 'entrenamiento') { setSel(ev); setModoEv(null); setMotivoEv(''); } }}
-        onDiaClick={() => setSel(null)}
+        onDiaClick={setSelFecha}
+        onEventoClick={(ev, fecha) => setSelFecha(fecha)}
+        diaSeleccionado={selFecha}
       />
 
-      {sel && (
+      {selFecha && (
         <div className="card shadow-sm border-0 mt-3">
-          <div className="card-body">
-            <div className="d-flex align-items-center gap-2 mb-2">
-              <span className={`badge ${TIPO_COLOR[sel.tipo]}`}>{TIPO_LABEL[sel.tipo]}</span>
-              <span className="fw-bold">{sel.data.nombre}</span>
-            </div>
-            <div className="small text-muted mb-2">
-              <i className="bi bi-calendar-event me-1"></i>{formatearFecha(sel.data.fecha)}
-              {sel.data.horaInicio && <> · <i className="bi bi-clock ms-1 me-1"></i>{sel.data.horaInicio}{sel.data.horaFin ? `–${sel.data.horaFin}` : ''} hs</>}
-              {sel.data.lugar && <> · <i className="bi bi-geo-alt ms-1 me-1"></i>{sel.data.lugar}</>}
-            </div>
-
-            {sel.data.convocado ? (
-              <>
-                {sel.data.miMarca && (
-                  <div className={`alert py-2 small mb-2 ${sel.data.miMarca.presente ? 'alert-success' : 'alert-warning'}`}>
-                    {sel.data.miMarca.presente ? 'Confirmaste asistencia' : `Ausencia justificada: ${sel.data.miMarca.motivoAusencia || ''}`}
-                    {sel.data.miMarca.estado === 'pendiente' && ' (en revisión)'}
-                  </div>
-                )}
-                {modoEv === 'ausente' ? (
-                  <>
-                    <textarea
-                      className="form-control mb-2" rows="2" autoFocus
-                      placeholder="Motivo de la ausencia..."
-                      value={motivoEv} onChange={(e) => setMotivoEv(e.target.value)}
-                    />
-                    <div className="d-flex gap-2">
-                      <button className="btn btn-danger flex-fill" onClick={() => marcarEvento('ausente')}>Confirmar ausencia</button>
-                      <button className="btn btn-outline-secondary" onClick={() => setModoEv(null)}>Volver</button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="d-flex gap-2">
-                    <button className="btn btn-success flex-fill" onClick={() => marcarEvento('presente')}>
-                      <i className="bi bi-check2 me-1"></i>Asistirá
-                    </button>
-                    <button className="btn btn-outline-danger flex-fill" onClick={() => setModoEv('ausente')}>
-                      <i className="bi bi-x-circle me-1"></i>No asistirá
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="small text-muted"><i className="bi bi-info-circle me-1"></i>Tu jugador no está convocado a este evento.</div>
+          <div className="card-header bg-white py-2 fw-bold border-bottom small">
+            <i className="bi bi-list-ul text-primary me-2"></i>{formatearFecha(selFecha)}
+          </div>
+          <div className="list-group list-group-flush">
+            {chipsSel.length === 0 && (
+              <div className="list-group-item text-muted small py-4 text-center">Sin actividades este día.</div>
             )}
+            {chipsSel.map((ev, i) => (
+              <div key={i} className="list-group-item px-3 py-2">
+                <div className="d-flex align-items-center gap-2 mb-1">
+                  <span className={`badge ${TIPO_COLOR[ev.tipo]}`}>{TIPO_LABEL[ev.tipo]}</span>
+                  <span className="fw-semibold small">{ev.data.nombre}</span>
+                </div>
+                <div className="small text-muted">
+                  {ev.data.horaInicio && (
+                    <><i className="bi bi-clock me-1"></i>{ev.data.horaInicio}{ev.data.horaFin ? ` – ${ev.data.horaFin}` : ''} hs</>
+                  )}
+                  {ev.data.lugar && <span className="ms-2"><i className="bi bi-geo-alt me-1"></i>{ev.data.lugar}</span>}
+                </div>
+
+                {ev.tipo === 'entrenamiento' ? (
+                  selFecha === hoy ? (
+                    <BotonesMarcado
+                      itemKey="hoy" labelOk="Asistió"
+                      miMarca={marcaDe(hoy)}
+                      modoEv={modoEv} setModoEv={setModoEv}
+                      motivo={motivoEv} setMotivo={setMotivoEv}
+                      enviando={enviando}
+                      onAccion={(est) => ejecutar(onMarcar, est)}
+                    />
+                  ) : marcaDe(selFecha) ? (
+                    <div className="mt-1">
+                      <span className={`badge ${marcaDe(selFecha).presente ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis'}`}>
+                        {marcaDe(selFecha).presente ? 'Presente' : 'Ausente'}
+                      </span>
+                      {marcaDe(selFecha).estado === 'pendiente' && (
+                        <span className="badge bg-warning-subtle text-warning-emphasis ms-1">En revisión</span>
+                      )}
+                      {marcaDe(selFecha).motivoAusencia && (
+                        <div className="small text-muted mt-1">
+                          <i className="bi bi-chat-left-text me-1"></i>{marcaDe(selFecha).motivoAusencia}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="small text-muted mt-1">
+                      <i className="bi bi-info-circle me-1"></i>
+                      {selFecha < hoy ? 'Sin marca registrada.' : 'Podés marcar el mismo día del entrenamiento.'}
+                    </div>
+                  )
+                ) : ev.data.convocado ? (
+                  <BotonesMarcado
+                    itemKey={`ev-${ev.data.id}`} labelOk="Asistirá"
+                    miMarca={ev.data.miMarca}
+                    modoEv={modoEv} setModoEv={setModoEv}
+                    motivo={motivoEv} setMotivo={setMotivoEv}
+                    enviando={enviando}
+                    onAccion={(est) => ejecutar((s, m) => onMarcarEvento(ev.data.id, s, m), est)}
+                  />
+                ) : (
+                  <div className="small text-muted mt-1">
+                    <i className="bi bi-info-circle me-1"></i>Tu jugador no está convocado a este evento.
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -543,7 +617,7 @@ export default function PadreView({ usuario, onLogout }) {
 
       <div className="container py-3" style={{ maxWidth: '560px' }}>
         {vista === 'asistencia' && <TabAsistencia jugador={jugador} asistencias={asistencias} onMarcar={marcar} />}
-        {vista === 'calendario' && <TabCalendario jugador={jugador} eventos={eventos} onMarcarEvento={marcarEvento} />}
+        {vista === 'calendario' && <TabCalendario jugador={jugador} eventos={eventos} asistencias={asistencias} onMarcar={marcar} onMarcarEvento={marcarEvento} />}
         {vista === 'pagos' && <TabPagos jugador={jugador} pagos={pagos} onPagoSubido={(p) => setPagos((prev) => [p, ...prev])} />}
         {vista === 'jugador' && <TabJugador jugador={jugador} asistencias={asistencias} pagos={pagos} />}
       </div>
