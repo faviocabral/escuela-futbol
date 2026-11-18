@@ -404,7 +404,7 @@ export default function PadreView({ usuario, onLogout }) {
   return (
     <div className="bg-light min-vh-100 pb-5">
       <nav className="navbar sticky-top bg-white shadow-sm px-3">
-        <span className="navbar-brand mb-0 fw-bold text-dark">
+        <span className="mb-0 fw-bold text-dark" style={{ fontSize: '1.15rem' }}>
           <i className="bi bi-trophy-fill text-success me-2"></i>Escuela de Fútbol
         </span>
         <button className="btn btn-sm btn-outline-secondary" onClick={onLogout} title="Cerrar sesión">
