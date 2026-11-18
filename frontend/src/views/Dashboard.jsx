@@ -10,7 +10,7 @@ import { PagosView } from './PagosView';
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
-  guardarConvocatoria, guardarAsistencia, cambiarEstadoPago,
+  guardarConvocatoria, guardarAsistencia, confirmarAsistencia, cambiarEstadoPago,
 } from '../store';
 import { aviso } from '../utils/notify';
 
@@ -107,6 +107,7 @@ export default function Dashboard({ usuario, onLogout }) {
             convocatorias={convocatorias}
             asistencias={asistencias}
             onSave={guardarAsistencia}
+            onConfirmar={confirmarAsistencia}
           />
         );
       case 'pagos':

@@ -107,6 +107,16 @@ export const guardarAsistencia = (planilla) =>
     return true;
   });
 
+// Confirma las marcas pendientes de una planilla (cargadas por padres)
+export const confirmarAsistencia = (planillaId) =>
+  ejec(async () => {
+    await apiFetch(`/api/asistencias/${planillaId}/confirmar`, { method: 'PUT', body: JSON.stringify({}) });
+    const asistencias = await apiFetch('/api/asistencias');
+    state = { ...state, asistencias };
+    emit();
+    return true;
+  });
+
 // Confirma o rechaza un pago pendiente (el padre subió el comprobante)
 export const cambiarEstadoPago = (id, accion) =>
   ejec(async () => {

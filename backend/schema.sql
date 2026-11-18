@@ -26,6 +26,7 @@ create table if not exists categorias (
   edad_min smallint,
   edad_max smallint,
   entrenador_id bigint references entrenadores(id) on delete set null,
+  hora_entrenamiento time, -- inicio del entrenamiento; null = sin restricción de horario
   creado_en timestamptz not null default now()
 );
 
@@ -74,6 +75,7 @@ create table if not exists asistencia_registros (
   jugador_id bigint not null references jugadores(id) on delete cascade,
   presente boolean not null default false,
   origen text not null default 'staff', -- staff | padre
+  estado text not null default 'confirmado', -- pendiente | confirmado (padre marca → staff confirma)
   motivo_ausencia text,
   unique (asistencia_id, jugador_id)
 );

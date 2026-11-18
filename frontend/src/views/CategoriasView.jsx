@@ -3,7 +3,7 @@ import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
 
-const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '' };
+const FORM_VACIO = { nombre: '', edadMin: '', edadMax: '', entrenadorId: '', horaEntrenamiento: '' };
 
 export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onUpdate, onDelete }) => {
   const [form, setForm] = useState(FORM_VACIO);
@@ -31,6 +31,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       edadMin: form.edadMin === '' ? null : Number(form.edadMin),
       edadMax: form.edadMax === '' ? null : Number(form.edadMax),
       entrenadorId: form.entrenadorId === '' ? null : Number(form.entrenadorId),
+      horaEntrenamiento: form.horaEntrenamiento || null,
     };
 
     const guardado = editandoId
@@ -49,6 +50,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
       edadMin: c.edadMin ?? '',
       edadMax: c.edadMax ?? '',
       entrenadorId: c.entrenadorId ? String(c.entrenadorId) : '',
+      horaEntrenamiento: c.horaEntrenamiento || '',
     });
     setEditandoId(c.id);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -84,7 +86,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                     <label className="form-label small fw-semibold text-secondary">Edad máxima</label>
                     <input type="number" name="edadMax" className="form-control" value={form.edadMax} onChange={handleChange} min="3" max="20" placeholder="7" />
                   </div>
-                  <div className="col-12 col-md-5">
+                  <div className="col-12 col-md-4">
                     <label className="form-label small fw-semibold text-secondary">Entrenador a cargo</label>
                     <select name="entrenadorId" className="form-select" value={form.entrenadorId} onChange={handleChange}>
                       <option value="">Sin asignar</option>
@@ -92,6 +94,11 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                         <option key={ent.id} value={ent.id}>{ent.nombre} {ent.apellido}</option>
                       ))}
                     </select>
+                  </div>
+                  <div className="col-6 col-md-3">
+                    <label className="form-label small fw-semibold text-secondary">Horario de inicio</label>
+                    <input type="time" name="horaEntrenamiento" className="form-control" value={form.horaEntrenamiento} onChange={handleChange} />
+                    <div className="form-text small">Los padres marcan 1h antes a 30 min después</div>
                   </div>
                   <div className="col-12 d-flex justify-content-end gap-2">
                     {editandoId && (
@@ -131,6 +138,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                     <th className="px-3">Categoría</th>
                     <th>Rango de edad</th>
                     <th>Entrenador</th>
+                    <th>Horario</th>
                     <th>Jugadores</th>
                     <th className="px-3 text-end">Acciones</th>
                   </tr>
@@ -138,7 +146,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                 <tbody>
                   {filtradas.length === 0 ? (
                     <tr>
-                      <td colSpan="5" className="text-center text-muted py-5">
+                      <td colSpan="6" className="text-center text-muted py-5">
                         No hay categorías registradas.
                       </td>
                     </tr>
@@ -155,6 +163,11 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                               : '-'}
                           </td>
                           <td>{ent || <span className="text-muted small">Sin asignar</span>}</td>
+                          <td>
+                            {c.horaEntrenamiento
+                              ? <span className="badge bg-info-subtle text-info-emphasis"><i className="bi bi-clock me-1"></i>{c.horaEntrenamiento} hs</span>
+                              : <span className="text-muted small">-</span>}
+                          </td>
                           <td>
                             <span className="badge bg-success-subtle text-success">
                               {cant} {cant === 1 ? 'jugador' : 'jugadores'}

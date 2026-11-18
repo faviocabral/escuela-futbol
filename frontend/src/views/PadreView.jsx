@@ -11,7 +11,11 @@ const MESES = [
 ];
 
 const formatGs = (n) => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`;
-const formatearFecha = (iso) => (iso ? iso.split('-').reverse().join('/') : '-');
+const formatearFecha = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
+const hoyLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const ESTADO_BADGE = {
   pendiente: 'bg-warning-subtle text-warning-emphasis',
@@ -24,8 +28,8 @@ const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
   const [motivo, setMotivo] = useState('');
   const [modo, setModo] = useState(null); // 'presente' | 'ausente'
   const [enviando, setEnviando] = useState(false);
-  const hoy = new Date().toISOString().slice(0, 10);
-  const marcaHoy = asistencias.find((a) => a.fecha === hoy && a.tipo === 'entrenamiento');
+  const hoy = hoyLocal();
+  const marcaHoy = asistencias.find((a) => a.fecha?.slice(0, 10) === hoy && a.tipo === 'entrenamiento');
   const pag = usePaginacion(asistencias.length);
 
   const marcar = async (estado) => {
@@ -48,7 +52,11 @@ const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
             <Avatar jugador={jugador} size={56} />
             <div>
               <div className="fw-bold">{jugador.nombre} {jugador.apellido}</div>
-              <div className="small text-muted">{jugador.categoriaNombre} · Hoy {formatearFecha(hoy)}</div>
+              <div className="small text-muted">
+                {jugador.categoriaNombre}
+                {jugador.horaEntrenamiento && <> · entrena {jugador.horaEntrenamiento} hs</>}
+                {' '}· Hoy {formatearFecha(hoy)}
+              </div>
             </div>
           </div>
 
@@ -56,7 +64,7 @@ const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
             <div className={`alert mb-2 py-2 small ${marcaHoy.presente ? 'alert-success' : 'alert-warning'}`}>
               <i className={`bi ${marcaHoy.presente ? 'bi-check-circle' : 'bi-exclamation-circle'} me-1`}></i>
               {marcaHoy.presente
-                ? 'Ya figura como presente hoy.'
+                ? <>Ya figura como presente hoy.{marcaHoy.estado === 'pendiente' && <> <b>(pendiente de confirmación del entrenador)</b></>}</>
                 : <>Marcado como <b>ausente</b>{marcaHoy.motivoAusencia ? `: ${marcaHoy.motivoAusencia}` : ''}</>}
             </div>
           ) : (
@@ -107,8 +115,13 @@ const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
             <div key={i} className="list-group-item px-3 py-2">
               <div className="d-flex justify-content-between align-items-center">
                 <span className="fw-medium small">{formatearFecha(a.fecha)} <span className="text-muted">· {a.torneo || 'Entrenamiento'}</span></span>
-                <span className={`badge ${a.presente ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis'}`}>
-                  {a.presente ? 'Presente' : 'Ausente'}
+                <span>
+                  <span className={`badge ${a.presente ? 'bg-success-subtle text-success-emphasis' : 'bg-danger-subtle text-danger-emphasis'}`}>
+                    {a.presente ? 'Presente' : 'Ausente'}
+                  </span>
+                  {a.estado === 'pendiente' && (
+                    <span className="badge bg-warning-subtle text-warning-emphasis ms-1">En revisión</span>
+                  )}
                 </span>
               </div>
               {a.motivoAusencia && <div className="small text-muted mt-1"><i className="bi bi-chat-left-text me-1"></i>{a.motivoAusencia}</div>}

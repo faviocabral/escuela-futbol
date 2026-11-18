@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
-import { aviso } from '../utils/notify';
+import { aviso, toast } from '../utils/notify';
 
 const formatearFecha = (iso) => {
   if (!iso) return '-';
-  const [y, m, d] = iso.split('-');
+  const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
 };
 
-export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, asistencias, onSave }) => {
+export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, asistencias, onSave, onConfirmar }) => {
   const [modo, setModo] = useState('entrenamiento'); // 'entrenamiento' | 'torneo'
   const [torneoId, setTorneoId] = useState('');
   const [categoriaId, setCategoriaId] = useState('');
@@ -47,7 +47,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
     const existente = asistencias.find((a) =>
       modo === 'torneo'
         ? a.torneoId === Number(torneoId)
-        : a.tipo === 'entrenamiento' && a.categoriaId === Number(categoriaId) && a.fecha === fecha
+        : a.tipo === 'entrenamiento' && a.categoriaId === Number(categoriaId) && a.fecha?.slice(0, 10) === fecha
     );
     const inicial = {};
     jugadoresLista.forEach((j) => {
@@ -65,7 +65,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
     const existente = asistencias.find((a) =>
       modo === 'torneo'
         ? a.torneoId === Number(torneoId)
-        : a.tipo === 'entrenamiento' && a.categoriaId === Number(categoriaId) && a.fecha === fecha
+        : a.tipo === 'entrenamiento' && a.categoriaId === Number(categoriaId) && a.fecha?.slice(0, 10) === fecha
     );
     const registros = jugadoresLista.map((j) => {
       const prev = existente?.registros.find((r) => r.jugadorId === j.id);
@@ -225,6 +225,7 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                   ) : (
                     pag.cortar(historial).map((a) => {
                       const presentes = a.registros.filter((r) => r.presente).length;
+                      const porConfirmar = a.registros.filter((r) => r.estado === 'pendiente').length;
                       const ausentesConMotivo = a.registros.filter((r) => !r.presente && r.motivoAusencia);
                       const torneo = a.torneoId ? torneos.find((t) => t.id === a.torneoId) : null;
                       return (
@@ -240,6 +241,15 @@ export const AsistenciaView = ({ jugadores, categorias, torneos, convocatorias, 
                             <span className="badge bg-success-subtle text-success">
                               {presentes}/{a.registros.length}
                             </span>
+                            {porConfirmar > 0 && (
+                              <button
+                                className="btn btn-sm btn-warning py-0 px-1 ms-1"
+                                title={`${porConfirmar} marca(s) del padre por confirmar — clic para confirmar`}
+                                onClick={async () => { if (await onConfirmar(a.id)) toast('Marcas confirmadas'); }}
+                              >
+                                <i className="bi bi-hourglass-split me-1"></i>{porConfirmar}
+                              </button>
+                            )}
                           </td>
                           <td className="small text-muted">
                             <div className="text-truncate" style={{ maxWidth: '280px' }}

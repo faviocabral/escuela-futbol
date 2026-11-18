@@ -121,8 +121,8 @@ const jugIn = (j) => ({
 
 const entIn = (e) => ({ nombre: e.nombre?.trim(), apellido: e.apellido?.trim(), telefono: e.telefono || null, email: e.email || null });
 
-const catOut = (c) => ({ id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id });
-const catIn = (c) => ({ nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null, entrenador_id: c.entrenadorId ?? null });
+const catOut = (c) => ({ id: c.id, nombre: c.nombre, edadMin: c.edad_min, edadMax: c.edad_max, entrenadorId: c.entrenador_id, horaEntrenamiento: c.hora_entrenamiento ? String(c.hora_entrenamiento).slice(0, 5) : null });
+const catIn = (c) => ({ nombre: c.nombre?.trim(), edad_min: c.edadMin ?? null, edad_max: c.edadMax ?? null, entrenador_id: c.entrenadorId ?? null, hora_entrenamiento: c.horaEntrenamiento || null });
 
 const torOut = (t) => ({ id: t.id, nombre: t.nombre, fecha: t.fecha, lugar: t.lugar, categoriaId: t.categoria_id });
 const torIn = (t) => ({ nombre: t.nombre?.trim(), fecha: t.fecha, lugar: t.lugar || null, categoria_id: t.categoriaId ?? null });
@@ -139,9 +139,20 @@ const asisOut = (a, regs = []) => ({
     id: a.id, tipo: a.tipo, fecha: a.fecha, categoriaId: a.categoria_id, torneoId: a.torneo_id,
     registros: regs.filter((r) => r.asistencia_id === a.id).map((r) => ({
         jugadorId: r.jugador_id, presente: r.presente,
-        origen: r.origen || 'staff', motivoAusencia: r.motivo_ausencia || null,
+        origen: r.origen || 'staff', estado: r.estado || 'confirmado',
+        motivoAusencia: r.motivo_ausencia || null,
     })),
 });
+
+// ─────────────────────────────────────────────────────────────
+// 🕒 Fecha/hora en Asunción (el servidor corre en UTC)
+// ─────────────────────────────────────────────────────────────
+const ahoraAsuncion = () => new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Asuncion' }));
+const hoyAsuncion = () => {
+    const d = ahoraAsuncion();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const minAHHMM = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 
 const convOut = (c) => ({ id: c.id, torneoId: c.torneo_id, jugadorId: c.jugador_id });
 
@@ -320,13 +331,23 @@ app.post('/api/asistencias', ...staff, h(async (req, res) => {
                 registros.map((r) => ({
                     asistencia_id: cab.id, jugador_id: r.jugadorId, presente: !!r.presente,
                     origen: r.origen || 'staff', motivo_ausencia: r.motivoAusencia || null,
+                    // El staff revisa la planilla al guardarla → todo queda confirmado
+                    estado: 'confirmado',
                 }))
             );
         }
         return cab;
     });
 
-    res.status(201).json(asisOut(planilla, registros.map((r) => ({ asistencia_id: planilla.id, jugador_id: r.jugadorId, presente: !!r.presente, origen: r.origen || 'staff', motivo_ausencia: r.motivoAusencia || null }))));
+    res.status(201).json(asisOut(planilla, registros.map((r) => ({ asistencia_id: planilla.id, jugador_id: r.jugadorId, presente: !!r.presente, origen: r.origen || 'staff', estado: 'confirmado', motivo_ausencia: r.motivoAusencia || null }))));
+}));
+
+// El entrenador/admin confirma las marcas pendientes de una planilla (las que cargaron los padres)
+app.put('/api/asistencias/:id/confirmar', ...staff, h(async (req, res) => {
+    const n = await db('asistencia_registros')
+        .where({ asistencia_id: req.params.id, estado: 'pendiente' })
+        .update({ estado: 'confirmado' });
+    res.json({ ok: true, confirmados: n });
 }));
 
 // ─────────────────────────────────────────────────────────────
@@ -390,11 +411,11 @@ app.delete('/api/pagos/:id', ...staff, h(async (req, res) => {
 app.get('/api/padre/jugador', ...padre, h(async (req, res) => {
     const j = await db('jugadores')
         .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
-        .select('jugadores.*', 'categorias.nombre as categoria_nombre')
+        .select('jugadores.*', 'categorias.nombre as categoria_nombre', 'categorias.hora_entrenamiento')
         .where({ 'jugadores.id': req.usuario.jugadorId })
         .first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
-    res.json(jugPublicoOut(j));
+    res.json({ ...jugPublicoOut(j), horaEntrenamiento: j.hora_entrenamiento ? String(j.hora_entrenamiento).slice(0, 5) : null });
 }));
 
 // Historial de asistencia de su jugador (últimas 30 marcas)
@@ -404,14 +425,15 @@ app.get('/api/padre/asistencias', ...padre, h(async (req, res) => {
         .leftJoin('torneos', 'asistencias.torneo_id', 'torneos.id')
         .select(
             'asistencias.fecha', 'asistencias.tipo', 'torneos.nombre as torneo_nombre',
-            'asistencia_registros.presente', 'asistencia_registros.motivo_ausencia', 'asistencia_registros.origen'
+            'asistencia_registros.presente', 'asistencia_registros.motivo_ausencia',
+            'asistencia_registros.origen', 'asistencia_registros.estado'
         )
         .where({ 'asistencia_registros.jugador_id': req.usuario.jugadorId })
         .orderBy('asistencias.fecha', 'desc')
         .limit(30);
     res.json(rows.map((r) => ({
         fecha: r.fecha, tipo: r.tipo, torneo: r.torneo_nombre,
-        presente: r.presente, motivoAusencia: r.motivo_ausencia, origen: r.origen,
+        presente: r.presente, motivoAusencia: r.motivo_ausencia, origen: r.origen, estado: r.estado,
     })));
 }));
 
@@ -425,11 +447,28 @@ app.post('/api/padre/asistencia', ...padre, h(async (req, res) => {
     if (estado === 'ausente' && !motivo?.trim()) {
         return res.status(400).json({ error: 'Contanos el motivo de la ausencia.' });
     }
-    const j = await db('jugadores').where({ id: req.usuario.jugadorId }).first();
+    const j = await db('jugadores')
+        .leftJoin('categorias', 'jugadores.categoria_id', 'categorias.id')
+        .select('jugadores.*', 'categorias.hora_entrenamiento')
+        .where({ 'jugadores.id': req.usuario.jugadorId }).first();
     if (!j) return res.status(404).json({ error: 'Jugador no encontrado.' });
     if (!j.activo) return res.status(400).json({ error: 'Este jugador figura como inactivo.' });
 
-    const dia = fecha || new Date().toISOString().slice(0, 10);
+    // Ventana de marcado: 1h antes hasta 30 min después del inicio del entrenamiento.
+    // Solo aplica a marcar PRESENCIA; justificar ausencia se permite en cualquier momento.
+    if (estado === 'presente' && j.hora_entrenamiento && !fecha) {
+        const [hh, mm] = String(j.hora_entrenamiento).slice(0, 5).split(':').map(Number);
+        const inicio = hh * 60 + mm;
+        const ahora = ahoraAsuncion();
+        const ahoraMin = ahora.getHours() * 60 + ahora.getMinutes();
+        if (ahoraMin < inicio - 60 || ahoraMin > inicio + 30) {
+            return res.status(400).json({
+                error: `Fuera de horario: la asistencia se puede marcar entre ${minAHHMM(inicio - 60)} y ${minAHHMM(inicio + 30)} hs. El entrenador o el administrador puede marcarla en otro momento.`,
+            });
+        }
+    }
+
+    const dia = fecha || hoyAsuncion();
     let planilla = await db('asistencias')
         .where({ tipo: 'entrenamiento', categoria_id: j.categoria_id, fecha: dia }).first();
     if (!planilla) {
@@ -447,10 +486,11 @@ app.post('/api/padre/asistencia', ...padre, h(async (req, res) => {
     await db('asistencia_registros')
         .insert({
             asistencia_id: planilla.id, jugador_id: j.id, presente,
-            origen: 'padre', motivo_ausencia: presente ? null : motivo.trim(),
+            origen: 'padre', estado: 'pendiente',
+            motivo_ausencia: presente ? null : motivo.trim(),
         })
         .onConflict(['asistencia_id', 'jugador_id'])
-        .merge({ presente, origen: 'padre', motivo_ausencia: presente ? null : motivo.trim() });
+        .merge({ presente, origen: 'padre', estado: 'pendiente', motivo_ausencia: presente ? null : motivo.trim() });
 
     res.json({ resultado: anterior ? 'actualizado' : 'ok' });
 }));
