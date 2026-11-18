@@ -177,6 +177,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                     <th>Rango de edad</th>
                     <th>Entrenador</th>
                     <th>Horario</th>
+                    <th>Lugar</th>
                     <th>Jugadores</th>
                     <th className="px-3 text-end">Acciones</th>
                   </tr>
@@ -184,7 +185,7 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                 <tbody>
                   {filtradas.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="text-center text-muted py-5">
+                      <td colSpan="7" className="text-center text-muted py-5">
                         No hay categorías registradas.
                       </td>
                     </tr>
@@ -204,13 +205,15 @@ export const CategoriasView = ({ categorias, entrenadores, jugadores, onAdd, onU
                           <td>
                             {c.horaInicio
                               ? (
-                                <>
-                                  <span className="badge bg-info-subtle text-info-emphasis" title={c.dias?.length ? `Días: ${c.dias.map((d) => DIAS.find((x) => x.v === d)?.l).join(', ')}` : 'Todos los días'}>
-                                    <i className="bi bi-clock me-1"></i>{c.horaInicio}{c.horaFin ? `–${c.horaFin}` : ''}
-                                  </span>
-                                  {c.lugar && <div className="small text-muted mt-1"><i className="bi bi-geo-alt me-1"></i>{c.lugar}</div>}
-                                </>
+                                <span className="badge bg-info-subtle text-info-emphasis" title={c.dias?.length ? `Días: ${c.dias.map((d) => DIAS.find((x) => x.v === d)?.l).join(', ')}` : 'Todos los días'}>
+                                  <i className="bi bi-clock me-1"></i>{c.horaInicio}{c.horaFin ? `–${c.horaFin}` : ''}
+                                </span>
                               )
+                              : <span className="text-muted small">-</span>}
+                          </td>
+                          <td>
+                            {c.lugar
+                              ? <span className="small"><i className="bi bi-geo-alt text-muted me-1"></i>{c.lugar}</span>
                               : <span className="text-muted small">-</span>}
                           </td>
                           <td>
