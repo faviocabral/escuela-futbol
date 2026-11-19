@@ -14,6 +14,11 @@ export class ApiError extends Error {
   }
 }
 
+// Cuando la API responde 401 (token vencido/inválido) se llama a este
+// handler: App lo usa para cerrar sesión y volver al login.
+let onSesionExpirada = null;
+export const setOnSesionExpirada = (cb) => { onSesionExpirada = cb; };
+
 export const apiFetch = async (path, options = {}) => {
   const token = getToken();
   const isFormData = options.body instanceof FormData;
@@ -28,7 +33,13 @@ export const apiFetch = async (path, options = {}) => {
   });
 
   const data = res.status !== 204 ? await res.json().catch(() => null) : null;
-  if (!res.ok) throw new ApiError(data?.error || `Error ${res.status}`, res.status);
+  if (!res.ok) {
+    if (res.status === 401 && !path.startsWith('/api/login')) {
+      setToken(null);
+      onSesionExpirada?.();
+    }
+    throw new ApiError(data?.error || `Error ${res.status}`, res.status);
+  }
   return data;
 };
 

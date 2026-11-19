@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { apiFetch, setToken } from '../api';
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, sesionExpirada }) {
     const [usuario, setUsuario] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -41,6 +41,12 @@ export default function Login({ onLogin }) {
                         <p className="login-box-msg text-center text-secondary small mb-4">
                             <b>INICIAR SESIÓN</b>
                         </p>
+
+                        {sesionExpirada && (
+                            <div className="alert alert-warning py-2 small" role="alert">
+                                <i className="bi bi-clock-history me-1"></i> Tu sesión expiró. Ingresá nuevamente.
+                            </div>
+                        )}
 
                         {error && (
                             <div className="alert alert-danger py-2 small" role="alert">
