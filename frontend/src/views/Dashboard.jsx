@@ -8,6 +8,7 @@ import { TorneosView } from './TorneosView';
 import { AsistenciaView } from './AsistenciaView';
 import { PagosView } from './PagosView';
 import { CalendarioView } from './CalendarioView';
+import { ConfiguracionView } from './ConfiguracionView';
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
@@ -23,6 +24,7 @@ const TITULOS = {
   torneos: 'Eventos',
   asistencia: 'Asistencia',
   pagos: 'Pagos',
+  configuracion: 'Configuración',
 };
 
 export default function Dashboard({ usuario, onLogout }) {
@@ -130,6 +132,13 @@ export default function Dashboard({ usuario, onLogout }) {
             onDelete={eliminarEn('pagos', '/api/pagos')}
             onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
             onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
+          />
+        );
+      case 'configuracion':
+        return (
+          <ConfiguracionView
+            jugadores={jugadores}
+            categorias={categorias}
             onRecargar={cargarDatos}
           />
         );
