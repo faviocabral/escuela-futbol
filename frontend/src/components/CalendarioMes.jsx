@@ -181,8 +181,8 @@ export const Calendario = ({ eventosPara, onEventoClick, onDiaClick, diaSeleccio
             return (
               <div
                 key={i}
-                className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'bg-light' : ''}`}
-                style={{ height: '84px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px' }}
+                className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'border-secondary' : ''}`}
+                style={{ height: '84px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px', backgroundColor: sel ? '#dee2e6' : undefined }}
                 onClick={() => seleccionarFecha(fecha)}
               >
                 <div className={`fw-semibold ${esHoy ? 'text-primary' : 'text-muted'}`}>{dia}</div>
@@ -207,8 +207,8 @@ export const Calendario = ({ eventosPara, onEventoClick, onDiaClick, diaSeleccio
           return (
             <div
               key={i}
-              className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'bg-light' : ''}`}
-              style={{ minHeight: '130px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px' }}
+              className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'border-secondary' : ''}`}
+              style={{ minHeight: '130px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px', backgroundColor: sel ? '#dee2e6' : undefined }}
               onClick={() => seleccionarFecha(fecha)}
             >
               <div className={`fw-semibold mb-1 ${esHoy ? 'text-primary' : 'text-muted'}`}>
