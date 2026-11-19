@@ -19,10 +19,16 @@ const hoyLocal = () => {
 };
 
 const ESTADO_BADGE = {
-  pendiente: 'bg-warning-subtle text-warning-emphasis',
+  pendiente: 'bg-info-subtle text-info-emphasis',
+  en_revision: 'bg-warning-subtle text-warning-emphasis',
   confirmado: 'bg-success-subtle text-success-emphasis',
   rechazado: 'bg-danger-subtle text-danger-emphasis',
 };
+const ESTADO_LABEL = {
+  pendiente: 'A pagar', en_revision: 'En revisión', confirmado: 'Pagado', rechazado: 'Rechazado',
+};
+const esVencida = (p) =>
+  p.estado === 'pendiente' && p.vencimiento && p.vencimiento.slice(0, 10) < hoyLocal();
 
 // ── Tab: Asistencia ─────────────────────────────────────────
 const TabAsistencia = ({ jugador, asistencias, onMarcar }) => {
@@ -183,7 +189,13 @@ const TabPagos = ({ jugador, pagos, onPagoSubido }) => {
     }
   };
 
-  const yaTienePago = pagos.some((p) => p.mes === Number(mes) && p.anio === Number(anio) && p.estado !== 'rechazado');
+  // Si la cuota está 'pendiente' se puede pagar; solo se bloquea si ya fue pagada o está en revisión
+  const yaTienePago = pagos.some(
+    (p) => p.mes === Number(mes) && p.anio === Number(anio) && ['en_revision', 'confirmado'].includes(p.estado)
+  );
+  const ordenados = [...pagos].sort(
+    (a, b) => (a.estado === 'pendiente' ? 0 : 1) - (b.estado === 'pendiente' ? 0 : 1) || b.anio - a.anio || b.mes - a.mes
+  );
 
   return (
     <>
@@ -220,7 +232,7 @@ const TabPagos = ({ jugador, pagos, onPagoSubido }) => {
                 <div className="col-12">
                   <div className="alert alert-warning py-2 small mb-0">
                     <i className="bi bi-info-circle me-1"></i>
-                    Ya hay un pago vigente para {MESES[mes - 1]} {anio}.
+                    {MESES[mes - 1]} {anio} ya está pagado o en revisión.
                   </div>
                 </div>
               )}
@@ -249,21 +261,29 @@ const TabPagos = ({ jugador, pagos, onPagoSubido }) => {
 
       <div className="card shadow-sm border-0">
         <div className="card-header bg-white py-3 fw-bold border-bottom">
-          <i className="bi bi-receipt text-success me-2"></i> Mis pagos
+          <i className="bi bi-receipt text-success me-2"></i> Mis cuotas y pagos
         </div>
         <div className="list-group list-group-flush">
           {pagos.length === 0 && (
-            <div className="list-group-item text-muted text-center py-4 small">Todavía no registraste pagos.</div>
+            <div className="list-group-item text-muted text-center py-4 small">Todavía no hay cuotas ni pagos registrados.</div>
           )}
-          {pag.cortar(pagos).map((p) => (
+          {pag.cortar(ordenados).map((p) => (
             <div key={p.id} className="list-group-item px-3 py-2">
               <div className="d-flex justify-content-between align-items-center">
                 <span className="fw-medium">{MESES[p.mes - 1]} {p.anio}</span>
-                <span className={`badge ${ESTADO_BADGE[p.estado] || 'bg-secondary'}`}>{p.estado}</span>
+                <span>
+                  {esVencida(p) ? (
+                    <span className="badge bg-danger-subtle text-danger-emphasis">Vencida</span>
+                  ) : (
+                    <span className={`badge ${ESTADO_BADGE[p.estado] || 'bg-secondary'}`}>{ESTADO_LABEL[p.estado] || p.estado}</span>
+                  )}
+                </span>
               </div>
               <div className="d-flex justify-content-between align-items-center mt-1">
                 <span className="small text-success fw-semibold">{formatGs(p.monto)}</span>
-                <span className="small text-muted">{p.metodo}</span>
+                <span className={`small ${esVencida(p) ? 'text-danger fw-semibold' : 'text-muted'}`}>
+                  {p.vencimiento ? `Vence ${formatearFecha(p.vencimiento)}` : (p.metodo || '')}
+                </span>
               </div>
               {(p.nroComprobante || p.banco) && (
                 <div className="small text-muted mt-1">
@@ -640,7 +660,7 @@ export default function PadreView({ usuario, onLogout }) {
       <div className="container py-3" style={{ maxWidth: '560px' }}>
         {vista === 'asistencia' && <TabAsistencia jugador={jugador} asistencias={asistencias} onMarcar={marcar} />}
         {vista === 'calendario' && <TabCalendario jugador={jugador} eventos={eventos} asistencias={asistencias} onMarcar={marcar} onMarcarEvento={marcarEvento} />}
-        {vista === 'pagos' && <TabPagos jugador={jugador} pagos={pagos} onPagoSubido={(p) => setPagos((prev) => [p, ...prev])} />}
+        {vista === 'pagos' && <TabPagos jugador={jugador} pagos={pagos} onPagoSubido={(p) => setPagos((prev) => prev.some((x) => x.id === p.id) ? prev.map((x) => (x.id === p.id ? p : x)) : [p, ...prev])} />}
         {vista === 'jugador' && <TabJugador jugador={jugador} asistencias={asistencias} pagos={pagos} />}
       </div>
 

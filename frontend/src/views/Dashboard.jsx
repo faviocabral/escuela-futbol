@@ -130,6 +130,7 @@ export default function Dashboard({ usuario, onLogout }) {
             onDelete={eliminarEn('pagos', '/api/pagos')}
             onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
             onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
+            onRecargar={cargarDatos}
           />
         );
       default:

@@ -157,6 +157,7 @@ const pagoOut = (p) => ({
     metodo: p.metodo, fechaPago: p.fecha_pago, estado: p.estado || 'confirmado',
     registradoPor: p.registrado_por || 'staff', comprobanteUrl: p.comprobante_url || null,
     nroComprobante: p.nro_comprobante || null, banco: p.banco || null, remitente: p.remitente || null,
+    vencimiento: p.vencimiento || null, detalle: p.detalle || null,
 });
 const pagoIn = (p) => ({ jugador_id: p.jugadorId, mes: p.mes, anio: p.anio, monto: p.monto, metodo: p.metodo || null, fecha_pago: p.fechaPago || new Date() });
 
@@ -384,14 +385,95 @@ app.get('/api/pagos', ...staff, h(async (req, res) => {
 
 app.post('/api/pagos', ...staff, h(async (req, res) => {
     try {
+        const datos = pagoIn(req.body);
+        // Si el período tiene una cuota/pago vigente, se liquida como confirmado
+        const existente = await db('pagos')
+            .where({ jugador_id: datos.jugador_id, mes: datos.mes, anio: datos.anio })
+            .whereNot('estado', 'rechazado')
+            .first();
+        if (existente) {
+            const [row] = await db('pagos').where({ id: existente.id }).update({
+                monto: datos.monto ?? existente.monto,
+                metodo: datos.metodo || 'Efectivo',
+                fecha_pago: datos.fecha_pago || new Date(),
+                estado: 'confirmado', registrado_por: 'staff',
+            }).returning('*');
+            return res.json(pagoOut(row));
+        }
         const [row] = await db('pagos')
-            .insert({ ...pagoIn(req.body), estado: 'confirmado', registrado_por: 'staff' })
+            .insert({ ...datos, estado: 'confirmado', registrado_por: 'staff' })
             .returning('*');
         res.status(201).json(pagoOut(row));
     } catch (e) {
         if (e.code === '23505') return res.status(409).json({ error: 'Ya existe un pago vigente para ese jugador en ese período.' });
         throw e;
     }
+}));
+
+// ── Configuración global (monto/periodo/vencimiento de cuotas) ──
+const CONFIG_DEFAULTS = {
+    cuota_monto: '150000', cuota_mes_inicio: '3',
+    cuota_mes_fin: '11', cuota_dia_vencimiento: '5',
+};
+const leerConfig = async () => {
+    const rows = await db('config').select('*');
+    const cfg = { ...CONFIG_DEFAULTS };
+    rows.forEach((r) => { cfg[r.clave] = r.valor; });
+    return cfg;
+};
+
+app.get('/api/config', ...staff, h(async (req, res) => res.json(await leerConfig())));
+
+app.put('/api/config', ...staff, h(async (req, res) => {
+    for (const [k, v] of Object.entries(req.body || {})) {
+        if (!(k in CONFIG_DEFAULTS)) continue;
+        await db('config').insert({ clave: k, valor: String(v) }).onConflict('clave').merge();
+    }
+    res.json(await leerConfig());
+}));
+
+// Generar cuotas del año: todos | categoria | jugador.
+// El jugador dado de alta a mitad de año arranca desde su mes de alta.
+app.post('/api/cuotas/generar', ...staff, h(async (req, res) => {
+    const { anio, alcance = 'todos', categoriaId, jugadorId } = req.body || {};
+    const anioNum = Number(anio);
+    if (!anioNum) return res.status(400).json({ error: 'Indicá el año para generar las cuotas.' });
+
+    const cfg = await leerConfig();
+    const monto = Number(cfg.cuota_monto) || 0;
+    const mesIni = Number(cfg.cuota_mes_inicio) || 1;
+    const mesFin = Math.min(12, Number(cfg.cuota_mes_fin) || 12);
+    const diaVenc = Math.min(28, Math.max(1, Number(cfg.cuota_dia_vencimiento) || 5));
+
+    let q = db('jugadores').where({ activo: true }).select('id', 'creado_en');
+    if (alcance === 'categoria' && categoriaId) q = q.where({ categoria_id: Number(categoriaId) });
+    if (alcance === 'jugador' && jugadorId) q = q.where({ id: Number(jugadorId) });
+    const jugadores = await q;
+
+    let generadas = 0, saltadas = 0;
+    for (const j of jugadores) {
+        let desde = mesIni;
+        if (j.creado_en) {
+            const c = new Date(j.creado_en);
+            if (c.getFullYear() > anioNum) continue; // todavía no existía en ese año
+            if (c.getFullYear() === anioNum && c.getMonth() + 1 > desde) desde = c.getMonth() + 1;
+        }
+        for (let m = desde; m <= mesFin; m++) {
+            const existe = await db('pagos')
+                .where({ jugador_id: j.id, mes: m, anio: anioNum })
+                .whereNot('estado', 'rechazado')
+                .first();
+            if (existe) { saltadas++; continue; }
+            const venc = `${anioNum}-${String(m).padStart(2, '0')}-${String(diaVenc).padStart(2, '0')}`;
+            await db('pagos').insert({
+                jugador_id: j.id, mes: m, anio: anioNum, monto,
+                metodo: null, fecha_pago: venc, vencimiento: venc,
+                estado: 'pendiente', registrado_por: 'sistema', detalle: 'Cuota mensual',
+            });
+            generadas++;
+        }
+    }
+    res.json({ generadas, saltadas, jugadores: jugadores.length });
 }));
 
 // El contador confirma un pago subido por el padre (puede corregir el monto)
@@ -608,21 +690,29 @@ app.post('/api/padre/pago', ...padre, upload.single('comprobante'), h(async (req
     try { extraido = await extraerComprobante(req.file.buffer, req.file.mimetype); }
     catch (e) { console.error('⚠️ Gemini no pudo leer el comprobante:', e.message); }
 
-    // 3) Crear el pago pendiente de confirmación
+    // 3) Liquidar la cuota pendiente del período (o crear el pago en revisión)
     try {
-        const [row] = await db('pagos').insert({
-            jugador_id: req.usuario.jugadorId,
-            mes: Number(mes), anio: Number(anio),
-            monto: extraido?.monto || Number(monto) || 0,
+        const existente = await db('pagos')
+            .where({ jugador_id: req.usuario.jugadorId, mes: Number(mes), anio: Number(anio) })
+            .whereNot('estado', 'rechazado')
+            .first();
+        if (existente && existente.estado !== 'pendiente') {
+            return res.status(409).json({ error: 'Ese período ya está pagado o en revisión.' });
+        }
+        const datos = {
+            monto: extraido?.monto || Number(monto) || existente?.monto || 0,
             metodo: 'Transferencia',
             fecha_pago: extraido?.fecha || new Date().toISOString().slice(0, 10),
-            estado: 'pendiente',
+            estado: 'en_revision',
             registrado_por: 'padre',
             comprobante_url: ruta,
             nro_comprobante: extraido?.nro_comprobante || null,
             banco: extraido?.banco_origen || null,
             remitente: extraido?.remitente || null,
-        }).returning('*');
+        };
+        const row = existente
+            ? (await db('pagos').where({ id: existente.id }).update(datos).returning('*'))[0]
+            : (await db('pagos').insert({ jugador_id: req.usuario.jugadorId, mes: Number(mes), anio: Number(anio), ...datos }).returning('*'))[0];
         res.status(201).json({ pago: pagoOut(row), extraido });
     } catch (e) {
         if (e.code === '23505') {

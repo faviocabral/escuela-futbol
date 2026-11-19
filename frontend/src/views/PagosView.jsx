@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
 import { aviso, confirmar, toast } from '../utils/notify';
@@ -9,28 +9,95 @@ const MESES = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
 
-const MONTO_MENSUALIDAD = 150000;
-
 const formatGs = (n) => `Gs. ${Number(n || 0).toLocaleString('es-PY')}`;
+const fmtFecha = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
+const hoyLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 const ESTADO_BADGE = {
-  pendiente: 'bg-warning-subtle text-warning-emphasis',
+  pendiente: 'bg-info-subtle text-info-emphasis',
+  en_revision: 'bg-warning-subtle text-warning-emphasis',
   confirmado: 'bg-success-subtle text-success-emphasis',
   rechazado: 'bg-danger-subtle text-danger-emphasis',
 };
+const ESTADO_LABEL = {
+  pendiente: 'Pendiente', en_revision: 'En revisión', confirmado: 'Pagado', rechazado: 'Rechazado',
+};
+const esVencida = (p) =>
+  p.estado === 'pendiente' && p.vencimiento && p.vencimiento.slice(0, 10) < hoyLocal();
 
-export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar }) => {
+export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar, onRecargar }) => {
   const hoy = new Date();
   const [jugadorId, setJugadorId] = useState('');
   const [mes, setMes] = useState(hoy.getMonth() + 1);
   const [anio, setAnio] = useState(hoy.getFullYear());
-  const [monto, setMonto] = useState(MONTO_MENSUALIDAD);
+  const [monto, setMonto] = useState('');
   const [metodo, setMetodo] = useState('Efectivo');
 
   const [filtroJugador, setFiltroJugador] = useState('');
   const [filtroMes, setFiltroMes] = useState('');
   const [filtroAnio, setFiltroAnio] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
+
+  // Configuración de cuotas + generador anual
+  const [cfg, setCfg] = useState(null);
+  const [guardandoCfg, setGuardandoCfg] = useState(false);
+  const [genAnio, setGenAnio] = useState(hoy.getFullYear());
+  const [genAlcance, setGenAlcance] = useState('todos');
+  const [genCatId, setGenCatId] = useState('');
+  const [genJugId, setGenJugId] = useState('');
+  const [generando, setGenerando] = useState(false);
+
+  useEffect(() => {
+    apiFetch('/api/config')
+      .then((c) => { setCfg(c); setMonto(Number(c.cuota_monto) || ''); })
+      .catch(() => {});
+  }, []);
+
+  const guardarConfig = async () => {
+    setGuardandoCfg(true);
+    try {
+      const c = await apiFetch('/api/config', {
+        method: 'PUT',
+        body: JSON.stringify({
+          cuota_monto: cfg.cuota_monto,
+          cuota_mes_inicio: cfg.cuota_mes_inicio,
+          cuota_mes_fin: cfg.cuota_mes_fin,
+          cuota_dia_vencimiento: cfg.cuota_dia_vencimiento,
+        }),
+      });
+      setCfg(c);
+      toast('Configuración guardada');
+    } catch (e) {
+      aviso(e.message, 'error');
+    } finally {
+      setGuardandoCfg(false);
+    }
+  };
+
+  const generarCuotas = async () => {
+    if (genAlcance === 'categoria' && !genCatId) return aviso('Elegí la categoría.');
+    if (genAlcance === 'jugador' && !genJugId) return aviso('Elegí el jugador.');
+    setGenerando(true);
+    try {
+      const r = await apiFetch('/api/cuotas/generar', {
+        method: 'POST',
+        body: JSON.stringify({
+          anio: Number(genAnio), alcance: genAlcance,
+          categoriaId: genCatId ? Number(genCatId) : undefined,
+          jugadorId: genJugId ? Number(genJugId) : undefined,
+        }),
+      });
+      toast(`${r.generadas} cuota(s) generada(s)${r.saltadas ? ` — ${r.saltadas} ya existían` : ''}`);
+      onRecargar?.();
+    } catch (e) {
+      aviso(e.message, 'error');
+    } finally {
+      setGenerando(false);
+    }
+  };
 
   const jugadorNombre = (id) => {
     const j = jugadores.find((x) => x.id === id);
@@ -46,7 +113,10 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
     const duplicado = pagos.find(
       (p) => p.jugadorId === Number(jugadorId) && p.mes === Number(mes) && p.anio === Number(anio) && p.estado !== 'rechazado'
     );
-    if (duplicado) return aviso(`Ya existe un pago vigente para ${jugadorNombre(Number(jugadorId))} en ${MESES[mes - 1]} ${anio}.`);
+    // Una cuota 'pendiente' se liquida como pagada; el resto no admite duplicado
+    if (duplicado && duplicado.estado !== 'pendiente') {
+      return aviso(`Ese período ya está ${ESTADO_LABEL[duplicado.estado]?.toLowerCase() || 'cargado'} para ${jugadorNombre(Number(jugadorId))}.`);
+    }
 
     const guardado = await onAdd({
       jugadorId: Number(jugadorId),
@@ -88,7 +158,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
     .filter((j) => j.activo)
     .filter((j) => !pagos.some((p) => p.jugadorId === j.id && p.mes === mesRef && p.anio === anioRef && p.estado !== 'rechazado'));
 
-  const pendientesConfirmacion = filtrados.filter((p) => p.estado === 'pendiente').length;
+  const pendientesConfirmacion = filtrados.filter((p) => p.estado === 'en_revision').length;
   const totalFiltrado = filtrados.filter((p) => p.estado === 'confirmado').reduce((acc, p) => acc + Number(p.monto), 0);
 
   return (
@@ -142,6 +212,101 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                   </div>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Configuración de cuotas + generador anual */}
+      <div className="row g-4 mb-3">
+        <div className="col-12">
+          <div className="card shadow-sm border-0">
+            <div className="card-header bg-white py-3 fw-bold border-bottom">
+              <i className="bi bi-gear text-primary me-2"></i> Cuotas del año
+            </div>
+            <div className="card-body">
+              {!cfg ? (
+                <div className="text-muted small">Cargando configuración…</div>
+              ) : (
+                <>
+                  <div className="row g-2 align-items-end border-bottom pb-3 mb-3">
+                    <div className="col-6 col-md-2">
+                      <label className="form-label small fw-semibold text-secondary">Monto cuota (Gs.)</label>
+                      <input type="number" className="form-control form-control-sm" value={cfg.cuota_monto}
+                        onChange={(e) => setCfg({ ...cfg, cuota_monto: e.target.value })} min="0" step="1000" />
+                    </div>
+                    <div className="col-6 col-md-2">
+                      <label className="form-label small fw-semibold text-secondary">Desde</label>
+                      <select className="form-select form-select-sm" value={cfg.cuota_mes_inicio}
+                        onChange={(e) => setCfg({ ...cfg, cuota_mes_inicio: e.target.value })}>
+                        {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-6 col-md-2">
+                      <label className="form-label small fw-semibold text-secondary">Hasta</label>
+                      <select className="form-select form-select-sm" value={cfg.cuota_mes_fin}
+                        onChange={(e) => setCfg({ ...cfg, cuota_mes_fin: e.target.value })}>
+                        {MESES.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-6 col-md-2">
+                      <label className="form-label small fw-semibold text-secondary">Vence el día</label>
+                      <input type="number" className="form-control form-control-sm" value={cfg.cuota_dia_vencimiento}
+                        onChange={(e) => setCfg({ ...cfg, cuota_dia_vencimiento: e.target.value })} min="1" max="28" />
+                    </div>
+                    <div className="col-12 col-md-4 text-md-end">
+                      <button className="btn btn-sm btn-outline-primary" disabled={guardandoCfg} onClick={guardarConfig}>
+                        <i className="bi bi-save me-1"></i>Guardar configuración
+                      </button>
+                    </div>
+                  </div>
+                  <div className="row g-2 align-items-end">
+                    <div className="col-6 col-md-2">
+                      <label className="form-label small fw-semibold text-secondary">Año</label>
+                      <input type="number" className="form-control form-control-sm" value={genAnio}
+                        onChange={(e) => setGenAnio(e.target.value)} min="2020" max="2100" />
+                    </div>
+                    <div className="col-6 col-md-3">
+                      <label className="form-label small fw-semibold text-secondary">Generar para</label>
+                      <select className="form-select form-select-sm" value={genAlcance} onChange={(e) => setGenAlcance(e.target.value)}>
+                        <option value="todos">Todos los jugadores activos</option>
+                        <option value="categoria">Una categoría</option>
+                        <option value="jugador">Un jugador</option>
+                      </select>
+                    </div>
+                    {genAlcance === 'categoria' && (
+                      <div className="col-6 col-md-3">
+                        <label className="form-label small fw-semibold text-secondary">Categoría</label>
+                        <select className="form-select form-select-sm" value={genCatId} onChange={(e) => setGenCatId(e.target.value)}>
+                          <option value="">Seleccionar...</option>
+                          {categorias.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    {genAlcance === 'jugador' && (
+                      <div className="col-6 col-md-3">
+                        <label className="form-label small fw-semibold text-secondary">Jugador</label>
+                        <select className="form-select form-select-sm" value={genJugId} onChange={(e) => setGenJugId(e.target.value)}>
+                          <option value="">Seleccionar...</option>
+                          {jugadores.filter((j) => j.activo).map((j) => (
+                            <option key={j.id} value={j.id}>{j.nombre} {j.apellido}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="col-12 col-md-3 text-md-end">
+                      <button className="btn btn-sm btn-success" disabled={generando} onClick={generarCuotas}>
+                        {generando ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-magic me-1"></i>}
+                        Generar cuotas
+                      </button>
+                    </div>
+                  </div>
+                  <div className="form-text small mt-2">
+                    Genera cuotas de {MESES[Number(cfg.cuota_mes_inicio) - 1]} a {MESES[Number(cfg.cuota_mes_fin) - 1]} con vencimiento el día {cfg.cuota_dia_vencimiento} de cada mes.
+                    Quien se dé de alta a mitad de año arranca desde su mes de alta; las cuotas ya existentes se saltan.
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -208,7 +373,8 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                       <select className="form-select form-select-sm" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value)}>
                         <option value="">Todos los estados</option>
                         <option value="pendiente">Pendientes</option>
-                        <option value="confirmado">Confirmados</option>
+                        <option value="en_revision">En revisión</option>
+                        <option value="confirmado">Pagados</option>
                         <option value="rechazado">Rechazados</option>
                       </select>
                     </div>
@@ -222,6 +388,7 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                   <tr>
                     <th className="px-3">Jugador</th>
                     <th>Período</th>
+                    <th>Vence</th>
                     <th>Monto</th>
                     <th>Método</th>
                     <th>Estado</th>
@@ -232,21 +399,29 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                 <tbody>
                   {filtrados.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="text-center text-muted py-5">
+                      <td colSpan="8" className="text-center text-muted py-5">
                         No hay pagos que coincidan con el filtro.
                       </td>
                     </tr>
                   ) : (
                     pag.cortar(filtrados).map((p) => (
-                      <tr key={p.id} className={p.estado === 'pendiente' ? 'table-warning-subtle' : p.estado === 'rechazado' ? 'table-danger-subtle' : ''}>
+                      <tr key={p.id} className={p.estado === 'en_revision' ? 'table-warning-subtle' : (p.estado === 'rechazado' || esVencida(p)) ? 'table-danger-subtle' : ''}>
                         <td className="px-3 fw-semibold">
                           {jugadorNombre(p.jugadorId)}
                           {p.registradoPor === 'padre' && <i className="bi bi-phone ms-1 text-muted" title="Informado por el padre"></i>}
+                          {p.registradoPor === 'sistema' && <i className="bi bi-gear ms-1 text-muted" title="Cuota generada por el sistema"></i>}
                         </td>
                         <td><span className="badge bg-primary-subtle text-primary">{MESES[p.mes - 1]} {p.anio}</span></td>
+                        <td className={esVencida(p) ? 'text-danger fw-semibold' : 'text-muted'}>{p.vencimiento ? fmtFecha(p.vencimiento) : '-'}</td>
                         <td className="fw-medium text-success">{formatGs(p.monto)}</td>
-                        <td>{p.metodo}</td>
-                        <td><span className={`badge ${ESTADO_BADGE[p.estado] || 'bg-secondary'}`}>{p.estado}</span></td>
+                        <td>{p.metodo || '-'}</td>
+                        <td>
+                          {esVencida(p) ? (
+                            <span className="badge bg-danger-subtle text-danger-emphasis">Vencida</span>
+                          ) : (
+                            <span className={`badge ${ESTADO_BADGE[p.estado] || 'bg-secondary'}`}>{ESTADO_LABEL[p.estado] || p.estado}</span>
+                          )}
+                        </td>
                         <td className="small text-muted">
                           <div className="text-truncate" style={{ maxWidth: '200px' }}
                             title={`${p.nroComprobante ? `N° ${p.nroComprobante} · ` : ''}${p.remitente || ''} ${p.banco ? `(${p.banco})` : ''} · ${p.fechaPago}`}>
@@ -259,23 +434,23 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                               <i className="bi bi-image"></i>
                             </button>
                           )}
-                          {p.estado === 'pendiente' && (
-                            <>
-                              <button
-                                className="btn btn-sm btn-success me-1"
-                                title="Confirmar pago"
-                                onClick={async () => { if (await onConfirmar(p.id)) toast('Pago confirmado'); }}
-                              >
-                                <i className="bi bi-check-lg"></i>
-                              </button>
-                              <button
-                                className="btn btn-sm btn-outline-warning me-1"
-                                title="Rechazar"
-                                onClick={async () => { if (await confirmar('¿Rechazar este comprobante?', 'El padre deberá reenviarlo.')) { if (await onRechazar(p.id)) toast('Pago rechazado', 'warning'); } }}
-                              >
-                                <i className="bi bi-x-lg"></i>
-                              </button>
-                            </>
+                          {['pendiente', 'en_revision'].includes(p.estado) && (
+                            <button
+                              className="btn btn-sm btn-success me-1"
+                              title={p.estado === 'en_revision' ? 'Confirmar pago' : 'Marcar cuota como pagada'}
+                              onClick={async () => { if (await onConfirmar(p.id)) toast('Pago confirmado'); }}
+                            >
+                              <i className="bi bi-check-lg"></i>
+                            </button>
+                          )}
+                          {p.estado === 'en_revision' && (
+                            <button
+                              className="btn btn-sm btn-outline-warning me-1"
+                              title="Rechazar"
+                              onClick={async () => { if (await confirmar('¿Rechazar este comprobante?', 'El padre deberá reenviarlo.')) { if (await onRechazar(p.id)) toast('Pago rechazado', 'warning'); } }}
+                            >
+                              <i className="bi bi-x-lg"></i>
+                            </button>
                           )}
                           <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar('¿Eliminar este pago?')) await onDelete(p.id); }} title="Eliminar">
                             <i className="bi bi-trash"></i>

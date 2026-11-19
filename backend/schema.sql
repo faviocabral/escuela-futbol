@@ -95,17 +95,32 @@ create table if not exists pagos (
   monto numeric(12,0) not null default 0,
   metodo text,
   fecha_pago date not null default current_date,
-  estado text not null default 'confirmado', -- pendiente | confirmado | rechazado
-  registrado_por text not null default 'staff', -- staff | padre
+  estado text not null default 'confirmado', -- pendiente (emitida) | en_revision | confirmado | rechazado
+  registrado_por text not null default 'staff', -- staff | padre | sistema (cuota generada)
   comprobante_url text,
   nro_comprobante text,
   banco text,
-  remitente text
+  remitente text,
+  vencimiento date, -- fecha límite de la cuota (vencida = pendiente + fecha pasada)
+  detalle text
 );
 
 -- Un pago vigente por jugador/período; los rechazados no bloquean el reenvío
 create unique index if not exists pagos_unico_vigente
   on pagos (jugador_id, mes, anio) where estado <> 'rechazado';
+
+-- Configuración global editable desde el panel (cuotas, etc.)
+create table if not exists config (
+  clave text primary key,
+  valor text not null
+);
+
+insert into config (clave, valor) values
+  ('cuota_monto', '150000'),
+  ('cuota_mes_inicio', '3'),
+  ('cuota_mes_fin', '11'),
+  ('cuota_dia_vencimiento', '5')
+on conflict (clave) do nothing;
 
 do $$ begin
   alter table usuarios
