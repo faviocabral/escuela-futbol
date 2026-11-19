@@ -495,7 +495,7 @@ app.put('/api/pagos/:id/rechazar', ...staff, h(async (req, res) => {
 app.get('/api/pagos/:id/comprobante', verificarToken, h(async (req, res) => {
     const pago = await db('pagos').where({ id: req.params.id }).first();
     if (!pago || !pago.comprobante_url) return res.status(404).json({ error: 'Este pago no tiene comprobante.' });
-    if (req.usuario.rol === 'padre' && pago.jugador_id !== req.usuario.jugadorId) {
+    if (req.usuario.rol === 'padre' && Number(pago.jugador_id) !== Number(req.usuario.jugadorId)) {
         return res.status(403).json({ error: 'No podés ver comprobantes de otros jugadores.' });
     }
     const { data, error } = await supabase.storage
