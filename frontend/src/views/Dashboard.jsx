@@ -9,6 +9,9 @@ import { AsistenciaView } from './AsistenciaView';
 import { PagosView } from './PagosView';
 import { CalendarioView } from './CalendarioView';
 import { ConfiguracionView } from './ConfiguracionView';
+
+// Reportes carga jQuery + pivottable (pesados): lazy para no inflar el bundle inicial
+const ReportesView = React.lazy(() => import('./ReportesView').then((m) => ({ default: m.ReportesView })));
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
@@ -24,6 +27,7 @@ const TITULOS = {
   torneos: 'Eventos',
   asistencia: 'Asistencia',
   pagos: 'Pagos',
+  reportes: 'Reportes',
   configuracion: 'Configuración',
 };
 
@@ -133,6 +137,24 @@ export default function Dashboard({ usuario, onLogout }) {
             onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
             onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
           />
+        );
+      case 'reportes':
+        return (
+          <React.Suspense fallback={
+            <div className="text-center text-muted py-5">
+              <div className="spinner-border text-primary mb-3" role="status"></div>
+              <p className="small">Cargando reportes...</p>
+            </div>
+          }>
+            <ReportesView
+              jugadores={jugadores}
+              categorias={categorias}
+              torneos={torneos}
+              convocatorias={convocatorias}
+              asistencias={asistencias}
+              pagos={pagos}
+            />
+          </React.Suspense>
         );
       case 'configuracion':
         return (

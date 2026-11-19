@@ -10,6 +10,7 @@ export const Sidebar = ({ isSidebarOpen, currentView, onViewChange, onToggleSide
     { id: 'torneos', label: 'Eventos', icon: 'bi-trophy' },
     { id: 'asistencia', label: 'Asistencia', icon: 'bi-check2-square' },
     { id: 'pagos', label: 'Pagos', icon: 'bi-cash-coin' },
+    { id: 'reportes', label: 'Reportes', icon: 'bi-bar-chart' },
     { id: 'configuracion', label: 'Configuración', icon: 'bi-gear' },
   ];
 
