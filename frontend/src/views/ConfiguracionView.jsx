@@ -149,8 +149,9 @@ export const ConfiguracionView = ({ jugadores, categorias, onRecargar }) => {
                     </button>
                   </div>
                 </div>
-                <div className="form-text small mt-2">
-                  Genera cuotas de {MESES[Number(cfg.cuota_mes_inicio) - 1]} a {MESES[Number(cfg.cuota_mes_fin) - 1]} con vencimiento el día {cfg.cuota_dia_vencimiento} de cada mes.
+                <div className="alert alert-info py-2 small mb-0 mt-3" role="alert">
+                  <i className="bi bi-info-circle me-1"></i>
+                  Genera cuotas de <b>{MESES[Number(cfg.cuota_mes_inicio) - 1]}</b> a <b>{MESES[Number(cfg.cuota_mes_fin) - 1]}</b> con vencimiento el <b>día {cfg.cuota_dia_vencimiento}</b> de cada mes.
                   Quien se dé de alta a mitad de año arranca desde su mes de alta; las cuotas ya existentes se saltan.
                 </div>
               </>
