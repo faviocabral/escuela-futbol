@@ -159,15 +159,14 @@ export const TorneosView = ({ torneos, categorias, jugadores, convocatorias, onA
       {torneoConvocatoria && (
         <div className="row g-4 mb-3">
           <div className="col-12">
-            <div className="card shadow-sm border border-primary">
-              <div className="card-header bg-primary-subtle py-3 fw-bold border-bottom d-flex justify-content-between align-items-center">
-                <span>
-                  <i className="bi bi-clipboard-check text-primary me-2"></i>
-                  Convocatoria — {torneoConvocatoria.nombre} ({categoriaNombre(torneoConvocatoria.categoriaId)})
-                </span>
-                <button className="btn btn-sm btn-outline-secondary" onClick={() => setTorneoConvocatoria(null)}>
-                  <i className="bi bi-x-lg"></i>
-                </button>
+            <div className="card shadow-sm border border-primary position-relative">
+              <button className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-2" style={{ zIndex: 1 }}
+                onClick={() => setTorneoConvocatoria(null)}>
+                <i className="bi bi-x-lg"></i>
+              </button>
+              <div className="card-header bg-primary-subtle py-3 fw-bold border-bottom">
+                <i className="bi bi-clipboard-check text-primary me-2"></i>
+                Convocatoria — {torneoConvocatoria.nombre} ({categoriaNombre(torneoConvocatoria.categoriaId)})
               </div>
               <div className="card-body">
                 {jugadoresConvocables.length === 0 ? (
