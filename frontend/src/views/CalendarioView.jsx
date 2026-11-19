@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { CalendarioMes, DetalleDia, TIPO_LABEL } from '../components/CalendarioMes';
+import { Calendario, DetalleDia, TIPO_LABEL } from '../components/CalendarioMes';
 
 // Calendario del staff: entrenamientos recurrentes (días+horario de cada
 // categoría) y eventos puntuales (torneos/amistosos/otros) en una grilla mensual.
 export const CalendarioView = ({ categorias, entrenadores, torneos }) => {
   const [selFecha, setSelFecha] = useState(null);
   const [tipoFiltro, setTipoFiltro] = useState('');
+  const [vistaCal, setVistaCal] = useState('mes');
   const detalleRef = useRef(null);
 
   // En mobile el detalle queda bajo el calendario → scroll suave hasta él
@@ -62,32 +63,48 @@ export const CalendarioView = ({ categorias, entrenadores, torneos }) => {
       </div>
 
       <div className="row g-3">
-        <div className="col-12 col-lg-8">
-          <CalendarioMes eventosPara={chipsPara} onDiaClick={setSelFecha} onEventoClick={(ev, fecha) => setSelFecha(fecha)} diaSeleccionado={selFecha} />
+        <div className={`col-12 ${['mes', 'semana'].includes(vistaCal) ? 'col-lg-8' : ''}`}>
+          <Calendario
+            eventosPara={chipsPara}
+            onDiaClick={setSelFecha}
+            onEventoClick={(ev, fecha) => setSelFecha(fecha)}
+            diaSeleccionado={selFecha}
+            vista={vistaCal}
+            onVistaChange={setVistaCal}
+            detalleExtra={(ev) =>
+              ev.tipo === 'entrenamiento' ? (
+                <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{entrenadorNombre(ev.data.entrenadorId)}</span>
+              ) : ev.data.categoriaId ? (
+                <span className="ms-2"><i className="bi bi-diagram-3 me-1"></i>{categorias.find((c) => c.id === ev.data.categoriaId)?.nombre}</span>
+              ) : null
+            }
+          />
         </div>
-        <div className="col-12 col-lg-4">
-          {!selFecha ? (
-            <div className="card shadow-sm border-0">
-              <div className="card-body text-muted small py-4 text-center">
-                Tocá un día del calendario para ver sus actividades.
+        {['mes', 'semana'].includes(vistaCal) && (
+          <div className="col-12 col-lg-4">
+            {!selFecha ? (
+              <div className="card shadow-sm border-0">
+                <div className="card-body text-muted small py-4 text-center">
+                  Tocá un día del calendario para ver sus actividades.
+                </div>
               </div>
-            </div>
-          ) : (
-            <div ref={detalleRef} style={{ scrollMarginTop: '72px' }}>
-            <DetalleDia
-              fecha={selFecha}
-              chips={chipsPara(selFecha)}
-              extra={(ev) =>
-                ev.tipo === 'entrenamiento' ? (
-                  <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{entrenadorNombre(ev.data.entrenadorId)}</span>
-                ) : ev.data.categoriaId ? (
-                  <span className="ms-2"><i className="bi bi-diagram-3 me-1"></i>{categorias.find((c) => c.id === ev.data.categoriaId)?.nombre}</span>
-                ) : null
-              }
-            />
-            </div>
-          )}
-        </div>
+            ) : (
+              <div ref={detalleRef} style={{ scrollMarginTop: '72px' }}>
+                <DetalleDia
+                  fecha={selFecha}
+                  chips={chipsPara(selFecha)}
+                  extra={(ev) =>
+                    ev.tipo === 'entrenamiento' ? (
+                      <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{entrenadorNombre(ev.data.entrenadorId)}</span>
+                    ) : ev.data.categoriaId ? (
+                      <span className="ms-2"><i className="bi bi-diagram-3 me-1"></i>{categorias.find((c) => c.id === ev.data.categoriaId)?.nombre}</span>
+                    ) : null
+                  }
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

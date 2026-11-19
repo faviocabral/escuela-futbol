@@ -3,7 +3,7 @@ import { apiFetch } from '../api';
 import { Avatar } from '../components/Avatar';
 import { Paginador } from '../components/Paginador';
 import { usePaginacion } from '../hooks/usePaginacion';
-import { CalendarioMes, DetalleDia, TIPO_LABEL } from '../components/CalendarioMes';
+import { Calendario, DetalleDia, TIPO_LABEL } from '../components/CalendarioMes';
 import { aviso, toast } from '../utils/notify';
 
 const MESES = [
@@ -391,6 +391,7 @@ const BotonesMarcado = ({ itemKey, miMarca, labelOk, modoEv, setModoEv, motivo, 
 const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento }) => {
   const [selFecha, setSelFecha] = useState(null);
   const [tipoFiltro, setTipoFiltro] = useState('');
+  const [vistaCal, setVistaCal] = useState('mes');
   const [modoEv, setModoEv] = useState(null); // clave del ítem en modo 'ausente'
   const [motivoEv, setMotivoEv] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -514,14 +515,20 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
         ))}
       </div>
 
-      <CalendarioMes
+      <Calendario
         eventosPara={chipsPara}
         onDiaClick={setSelFecha}
         onEventoClick={(ev, fecha) => setSelFecha(fecha)}
         diaSeleccionado={selFecha}
+        vista={vistaCal}
+        onVistaChange={setVistaCal}
+        detalleAcciones={accionesDe}
+        detalleExtra={(ev) => ev.data.entrenador ? (
+          <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{ev.data.entrenador}</span>
+        ) : null}
       />
 
-      {selFecha && (
+      {selFecha && ['mes', 'semana'].includes(vistaCal) && (
         <div className="mt-3" ref={detalleRef} style={{ scrollMarginTop: '76px' }}>
           <DetalleDia
             fecha={selFecha}

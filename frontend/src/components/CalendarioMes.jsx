@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 
 const DIAS_SEMANA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const DIAS_LARGO = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 export const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
@@ -24,6 +25,16 @@ const TIPO_BARRA = {
 };
 
 const fmtFecha = (iso) => (iso ? iso.slice(0, 10).split('-').reverse().join('/') : '-');
+
+export const aAAA_MM_DD = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const lunesDeSemana = (d) => {
+  const x = new Date(d);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+};
+const addDias = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 // Detalle del día como timeline vertical: los bloques se agrupan por hora de
 // inicio y se apilan uno debajo del otro cuando comparten horario.
@@ -87,50 +98,82 @@ export const DetalleDia = ({ fecha, chips, extra, acciones }) => {
   );
 };
 
-export const aAAA_MM_DD = (d) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-// Calendario mensual compartido (staff y padres).
-// eventosPara(fecha 'YYYY-MM-DD') → [{ tipo, titulo, data }]
-// onEventoClick(evento) — clic en un chip; onDiaClick(fecha) — clic en el día
-export const CalendarioMes = ({ eventosPara, onEventoClick, onDiaClick, diaSeleccionado }) => {
-  const hoyStr = aAAA_MM_DD(new Date());
-  const [cursor, setCursor] = useState(() => {
-    const h = new Date();
-    return { anio: h.getFullYear(), mes: h.getMonth() };
-  });
-
-  const mover = (delta) =>
-    setCursor((c) => {
-      const m = c.mes + delta;
-      return { anio: c.anio + Math.floor(m / 12), mes: ((m % 12) + 12) % 12 };
-    });
-
-  const { anio, mes } = cursor;
-  const primero = new Date(anio, mes, 1);
-  const offset = (primero.getDay() + 6) % 7; // semana empieza en lunes
-  const diasEnMes = new Date(anio, mes + 1, 0).getDate();
-  const celdas = [...Array(offset).fill(null), ...Array.from({ length: diasEnMes }, (_, i) => i + 1)];
-  while (celdas.length % 7) celdas.push(null);
-
-  return (
-    <div className="card shadow-sm border-0">
-      <div className="card-header bg-white py-2 border-bottom d-flex justify-content-between align-items-center">
-        <button className="btn btn-sm btn-outline-secondary" onClick={() => mover(-1)}>
-          <i className="bi bi-chevron-left"></i>
-        </button>
-        <span className="fw-bold">{MESES[mes]} {anio}</span>
-        <button className="btn btn-sm btn-outline-secondary" onClick={() => mover(1)}>
-          <i className="bi bi-chevron-right"></i>
-        </button>
+// Chips de eventos dentro de una celda del calendario
+const Chips = ({ chips, fecha, onEventoClick, max = 2 }) => (
+  <>
+    {chips.slice(0, max).map((ev, j) => (
+      <div
+        key={j}
+        className={`badge d-block text-truncate mb-1 fw-normal ${TIPO_COLOR[ev.tipo] || TIPO_COLOR.evento}`}
+        style={{ cursor: 'pointer' }}
+        title={ev.titulo}
+        onClick={(e) => { e.stopPropagation(); onEventoClick?.(ev, fecha); }}
+      >
+        {ev.titulo}
       </div>
-      <div className="card-body p-2">
+    ))}
+    {chips.length > max && <div className="text-muted" style={{ fontSize: '10px' }}>+{chips.length - max} más</div>}
+  </>
+);
+
+// Calendario multi-vista compartido (staff y padres): Mes / Semana / Día / Lista.
+// eventosPara(fecha 'YYYY-MM-DD') → [{ tipo, titulo, data }]
+// onEventoClick(evento, fecha) — clic en un chip; onDiaClick(fecha) — día mostrado/seleccionado
+// detalleExtra(ev), detalleAcciones(ev) → se pasan a DetalleDia en la vista Día
+export const Calendario = ({ eventosPara, onEventoClick, onDiaClick, diaSeleccionado, vista, onVistaChange, detalleExtra, detalleAcciones }) => {
+  const hoyStr = aAAA_MM_DD(new Date());
+  const [cursor, setCursor] = useState(() => new Date());
+  const cursorStr = aAAA_MM_DD(cursor);
+
+  const seleccionarFecha = (fecha) => {
+    setCursor(new Date(`${fecha}T12:00:00`));
+    onDiaClick?.(fecha);
+  };
+
+  const cambiarVista = (v) => {
+    onVistaChange?.(v);
+    if (v === 'dia') onDiaClick?.(cursorStr);
+  };
+
+  const mover = (delta) => {
+    const d = new Date(cursor);
+    if (vista === 'mes' || vista === 'lista') d.setMonth(d.getMonth() + delta, 1);
+    else if (vista === 'semana') d.setDate(d.getDate() + delta * 7);
+    else d.setDate(d.getDate() + delta);
+    setCursor(d);
+    if (vista === 'dia') onDiaClick?.(aAAA_MM_DD(d));
+  };
+
+  const irHoy = () => {
+    setCursor(new Date());
+    if (vista === 'dia') onDiaClick?.(hoyStr);
+  };
+
+  const lunes = lunesDeSemana(cursor);
+  const domingo = addDias(lunes, 6);
+  const titulo =
+    vista === 'semana'
+      ? `${lunes.getDate()} – ${domingo.getDate()} ${MESES[domingo.getMonth()]} ${domingo.getFullYear()}`
+      : vista === 'dia'
+        ? `${DIAS_LARGO[cursor.getDay()]} ${fmtFecha(cursorStr)}`
+        : `${MESES[cursor.getMonth()]} ${cursor.getFullYear()}`;
+
+  const vistaMes = () => {
+    const anio = cursor.getFullYear();
+    const mes = cursor.getMonth();
+    const offset = (new Date(anio, mes, 1).getDay() + 6) % 7; // semana empieza en lunes
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const celdas = [...Array(offset).fill(null), ...Array.from({ length: diasEnMes }, (_, i) => i + 1)];
+    while (celdas.length % 7) celdas.push(null);
+
+    return (
+      <>
         <div className="d-grid text-center small fw-semibold text-muted mb-1" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
           {DIAS_SEMANA.map((d) => <div key={d} className="py-1">{d}</div>)}
         </div>
         <div className="d-grid" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
           {celdas.map((dia, i) => {
-            if (!dia) return <div key={i} className="border-0" style={{ height: '84px' }}></div>;
+            if (!dia) return <div key={i} style={{ height: '84px' }}></div>;
             const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
             const chips = eventosPara ? eventosPara(fecha) : [];
             const esHoy = fecha === hoyStr;
@@ -140,25 +183,135 @@ export const CalendarioMes = ({ eventosPara, onEventoClick, onDiaClick, diaSelec
                 key={i}
                 className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'bg-light' : ''}`}
                 style={{ height: '84px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px' }}
-                onClick={() => onDiaClick?.(fecha)}
+                onClick={() => seleccionarFecha(fecha)}
               >
                 <div className={`fw-semibold ${esHoy ? 'text-primary' : 'text-muted'}`}>{dia}</div>
-                {chips.slice(0, 2).map((ev, j) => (
-                  <div
-                    key={j}
-                    className={`badge d-block text-truncate mb-1 fw-normal ${TIPO_COLOR[ev.tipo] || TIPO_COLOR.evento}`}
-                    style={{ cursor: 'pointer' }}
-                    title={ev.titulo}
-                    onClick={(e) => { e.stopPropagation(); onEventoClick?.(ev, fecha); }}
-                  >
-                    {ev.titulo}
-                  </div>
-                ))}
-                {chips.length > 2 && <div className="text-muted" style={{ fontSize: '10px' }}>+{chips.length - 2} más</div>}
+                <Chips chips={chips} fecha={fecha} onEventoClick={onEventoClick} />
               </div>
             );
           })}
         </div>
+      </>
+    );
+  };
+
+  const vistaSemana = () => {
+    const dias = Array.from({ length: 7 }, (_, i) => addDias(lunes, i));
+    return (
+      <div className="d-grid" style={{ gridTemplateColumns: 'repeat(7,1fr)' }}>
+        {dias.map((d, i) => {
+          const fecha = aAAA_MM_DD(d);
+          const chips = eventosPara ? eventosPara(fecha) : [];
+          const esHoy = fecha === hoyStr;
+          const sel = fecha === diaSeleccionado;
+          return (
+            <div
+              key={i}
+              className={`border rounded p-1 m-0 ${esHoy ? 'border-primary' : ''} ${sel ? 'bg-light' : ''}`}
+              style={{ minHeight: '130px', overflow: 'hidden', cursor: 'pointer', fontSize: '11px' }}
+              onClick={() => seleccionarFecha(fecha)}
+            >
+              <div className={`fw-semibold mb-1 ${esHoy ? 'text-primary' : 'text-muted'}`}>
+                {DIAS_SEMANA[i]} {d.getDate()}
+              </div>
+              <Chips chips={chips} fecha={fecha} onEventoClick={onEventoClick} max={4} />
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const vistaLista = () => {
+    const anio = cursor.getFullYear();
+    const mes = cursor.getMonth();
+    const diasEnMes = new Date(anio, mes + 1, 0).getDate();
+    const grupos = [];
+    for (let d = 1; d <= diasEnMes; d++) {
+      const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const chips = [...(eventosPara ? eventosPara(fecha) : [])]
+        .sort((a, b) => (a.data?.horaInicio || '99').localeCompare(b.data?.horaInicio || '99'));
+      if (chips.length) grupos.push({ fecha, chips });
+    }
+    if (!grupos.length) {
+      return <div className="text-muted small py-4 text-center">Sin actividades este mes.</div>;
+    }
+    return grupos.map(({ fecha, chips }) => {
+      const d = new Date(`${fecha}T12:00:00`);
+      return (
+        <div key={fecha} className="mb-3">
+          <div className="small fw-bold text-muted border-bottom pb-1 mb-1">
+            {DIAS_LARGO[d.getDay()]} {fmtFecha(fecha)}
+          </div>
+          {chips.map((ev, i) => (
+            <div
+              key={i}
+              className="d-flex align-items-center gap-2 py-2 border-bottom"
+              style={{ cursor: 'pointer' }}
+              onClick={() => {
+                setCursor(new Date(`${fecha}T12:00:00`));
+                onVistaChange?.('dia');
+                onDiaClick?.(fecha);
+              }}
+            >
+              <span className={`badge ${TIPO_COLOR[ev.tipo]} flex-shrink-0`} style={{ minWidth: '92px' }}>
+                {TIPO_LABEL[ev.tipo]}
+              </span>
+              <span className="small fw-semibold flex-fill text-truncate">{ev.data.nombre}</span>
+              <span className="small text-muted text-nowrap">
+                {ev.data.horaInicio ? `${ev.data.horaInicio}${ev.data.horaFin ? `–${ev.data.horaFin}` : ''}` : ''}
+              </span>
+              {ev.data.lugar && (
+                <span className="small text-muted text-nowrap d-none d-sm-inline">
+                  <i className="bi bi-geo-alt me-1"></i>{ev.data.lugar}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div className="card shadow-sm border-0">
+      <div className="card-header bg-white py-2 border-bottom">
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div className="d-flex align-items-center gap-1">
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => mover(-1)} title="Anterior">
+              <i className="bi bi-chevron-left"></i>
+            </button>
+            <button className="btn btn-sm btn-outline-secondary" onClick={irHoy}>Hoy</button>
+            <button className="btn btn-sm btn-outline-secondary" onClick={() => mover(1)} title="Siguiente">
+              <i className="bi bi-chevron-right"></i>
+            </button>
+          </div>
+          <span className="fw-bold">{titulo}</span>
+          <div className="btn-group btn-group-sm">
+            {[['mes', 'Mes'], ['semana', 'Semana'], ['dia', 'Día'], ['lista', 'Lista']].map(([v, l]) => (
+              <button
+                key={v}
+                className={`btn ${vista === v ? 'btn-primary' : 'btn-outline-secondary'}`}
+                onClick={() => cambiarVista(v)}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className={`card-body ${vista === 'dia' ? 'p-0' : 'p-2'}`}>
+        {vista === 'mes' && vistaMes()}
+        {vista === 'semana' && vistaSemana()}
+        {vista === 'lista' && vistaLista()}
+        {vista === 'dia' && (
+          <DetalleDia
+            fecha={cursorStr}
+            chips={eventosPara ? eventosPara(cursorStr) : []}
+            extra={detalleExtra}
+            acciones={detalleAcciones}
+          />
+        )}
       </div>
     </div>
   );
