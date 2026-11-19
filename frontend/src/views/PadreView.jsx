@@ -524,6 +524,7 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
       )}
 
       <div className="d-flex gap-1 align-items-center flex-wrap mb-3">
+        <span className="small text-muted fw-semibold">Filtrar:</span>
         {['', 'entrenamiento', 'torneo', 'amistoso', 'evento'].map((t) => (
           <button
             key={t}
@@ -535,31 +536,44 @@ const TabCalendario = ({ jugador, eventos, asistencias, onMarcar, onMarcarEvento
         ))}
       </div>
 
-      <Calendario
-        eventosPara={chipsPara}
-        onDiaClick={setSelFecha}
-        onEventoClick={(ev, fecha) => setSelFecha(fecha)}
-        diaSeleccionado={selFecha}
-        vista={vistaCal}
-        onVistaChange={setVistaCal}
-        detalleAcciones={accionesDe}
-        detalleExtra={(ev) => ev.data.entrenador ? (
-          <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{ev.data.entrenador}</span>
-        ) : null}
-      />
-
-      {selFecha && ['mes', 'semana'].includes(vistaCal) && (
-        <div className="mt-3" ref={detalleRef} style={{ scrollMarginTop: '76px' }}>
-          <DetalleDia
-            fecha={selFecha}
-            chips={chipsPara(selFecha)}
-            acciones={accionesDe}
-            extra={(ev) => ev.data.entrenador ? (
+      <div className="row g-3">
+        <div className={`col-12 ${['mes', 'semana'].includes(vistaCal) ? 'col-lg-8' : ''}`}>
+          <Calendario
+            eventosPara={chipsPara}
+            onDiaClick={setSelFecha}
+            onEventoClick={(ev, fecha) => setSelFecha(fecha)}
+            diaSeleccionado={selFecha}
+            vista={vistaCal}
+            onVistaChange={setVistaCal}
+            detalleAcciones={accionesDe}
+            detalleExtra={(ev) => ev.data.entrenador ? (
               <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{ev.data.entrenador}</span>
             ) : null}
           />
         </div>
-      )}
+        {['mes', 'semana'].includes(vistaCal) && (
+          <div className="col-12 col-lg-4">
+            {!selFecha ? (
+              <div className="card shadow-sm border-0">
+                <div className="card-body text-muted small py-4 text-center">
+                  Tocá un día del calendario para ver sus actividades.
+                </div>
+              </div>
+            ) : (
+              <div ref={detalleRef} style={{ scrollMarginTop: '76px' }}>
+                <DetalleDia
+                  fecha={selFecha}
+                  chips={chipsPara(selFecha)}
+                  acciones={accionesDe}
+                  extra={(ev) => ev.data.entrenador ? (
+                    <span className="ms-2"><i className="bi bi-person-badge me-1"></i>{ev.data.entrenador}</span>
+                  ) : null}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 };
