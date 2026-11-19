@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import $ from 'jquery';
+import $ from './pivotSetup'; // expone window.jQuery ANTES de jQuery UI
 // pivotUI necesita jQuery UI (sortable) para el drag&drop de campos
 import 'jquery-ui-dist/jquery-ui.min.js';
 import 'pivottable/dist/pivot.min.js';
