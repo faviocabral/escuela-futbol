@@ -14,7 +14,7 @@
     "admin-lte": "^4.0.2",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
-    "jquery": "^4.1.0",
+    "jquery": "3.7.1",
     "pivottable": "^2.23.0",
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
