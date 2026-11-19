@@ -41,6 +41,8 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
   const [filtroAnio, setFiltroAnio] = useState('');
   const [filtroEstado, setFiltroEstado] = useState('');
 
+  const [comprobanteVer, setComprobanteVer] = useState(null); // 'cargando' | { url }
+
   // Monto por defecto del formulario: el configurado para las cuotas
   useEffect(() => {
     apiFetch('/api/config').then((c) => setMonto(Number(c.cuota_monto) || '')).catch(() => {});
@@ -79,10 +81,12 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
   };
 
   const verComprobante = async (pagoId) => {
+    setComprobanteVer('cargando');
     try {
       const { url } = await apiFetch(`/api/pagos/${pagoId}/comprobante`);
-      window.open(url, '_blank');
+      setComprobanteVer({ url });
     } catch (err) {
+      setComprobanteVer(null);
       aviso(err.message, 'error');
     }
   };
@@ -335,6 +339,28 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
           </div>
         </div>
       </div>
+
+      {/* Modal del comprobante: la imagen se ve sin abrir otra pestaña */}
+      {comprobanteVer && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setComprobanteVer(null)}>
+          <div className="modal-dialog modal-dialog-centered modal-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header py-2">
+                <h6 className="modal-title mb-0"><i className="bi bi-image me-2"></i>Comprobante de transferencia</h6>
+                <button type="button" className="btn-close" onClick={() => setComprobanteVer(null)}></button>
+              </div>
+              <div className="modal-body text-center p-2">
+                {comprobanteVer === 'cargando' ? (
+                  <div className="py-5"><div className="spinner-border text-primary"></div></div>
+                ) : (
+                  <img src={comprobanteVer.url} alt="Comprobante" className="img-fluid rounded" style={{ maxHeight: '75vh' }} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
