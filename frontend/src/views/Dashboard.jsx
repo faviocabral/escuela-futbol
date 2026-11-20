@@ -137,6 +137,7 @@ export default function Dashboard({ usuario, onLogout }) {
             onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
             onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
             onPagar={pagarCuota}
+            onRevertir={(id) => cambiarEstadoPago(id, 'revertir')}
           />
         );
       case 'reportes':

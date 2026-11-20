@@ -527,6 +527,25 @@ app.put('/api/pagos/:id/confirmar', ...staff, h(async (req, res) => {
     res.json(pagoOut(row));
 }));
 
+// Revierte un pago/cuota a pendiente sin borrarlo (anula abonos y comprobante)
+app.put('/api/pagos/:id/revertir', ...staff, h(async (req, res) => {
+    const pago = await db('pagos').where({ id: req.params.id }).first();
+    if (!pago) return res.status(404).json({ error: 'Pago no encontrado.' });
+    const [row] = await db('pagos').where({ id: pago.id }).update({
+        estado: 'pendiente',
+        monto_pagado: 0,
+        monto_declarado: null,
+        metodo: null,
+        comprobante_url: null,
+        nro_comprobante: null,
+        banco: null,
+        remitente: null,
+        fecha_pago: pago.vencimiento || new Date(),
+        registrado_por: pago.detalle === 'Cuota mensual' ? 'sistema' : 'staff',
+    }).returning('*');
+    res.json(pagoOut(row));
+}));
+
 app.put('/api/pagos/:id/rechazar', ...staff, h(async (req, res) => {
     const [row] = await db('pagos').where({ id: req.params.id })
         .update({ estado: 'rechazado', monto_declarado: null }).returning('*');

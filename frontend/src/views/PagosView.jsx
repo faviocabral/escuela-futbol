@@ -28,7 +28,7 @@ const ESTADO_LABEL = {
 const esVencida = (p) =>
   p.estado === 'pendiente' && p.vencimiento && p.vencimiento.slice(0, 10) < hoyLocal();
 
-export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar, onPagar }) => {
+export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar, onPagar, onRevertir }) => {
   const hoy = new Date();
   const [jugadorId, setJugadorId] = useState('');
   const [mes, setMes] = useState(hoy.getMonth() + 1);
@@ -344,6 +344,15 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                               onClick={async () => { if (await confirmar('¿Rechazar este comprobante?', 'El padre deberá reenviarlo.')) { if (await onRechazar(p.id)) toast('Pago rechazado', 'warning'); } }}
                             >
                               <i className="bi bi-x-lg"></i>
+                            </button>
+                          )}
+                          {p.estado === 'confirmado' && (
+                            <button
+                              className="btn btn-sm btn-outline-secondary me-1"
+                              title="Revertir a pendiente"
+                              onClick={async () => { if (await confirmar('¿Revertir este pago?', 'Vuelve a pendiente y se anulan los abonos registrados.')) { if (await onRevertir(p.id)) toast('Pago revertido a pendiente', 'warning'); } }}
+                            >
+                              <i className="bi bi-arrow-counterclockwise"></i>
                             </button>
                           )}
                           <button className="btn btn-sm btn-outline-danger" onClick={async () => { if (await confirmar('¿Eliminar este pago?')) await onDelete(p.id); }} title="Eliminar">
