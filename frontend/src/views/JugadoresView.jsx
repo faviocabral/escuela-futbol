@@ -89,6 +89,8 @@ export const JugadoresView = ({ jugadores, categorias, onAdd, onUpdate, onDelete
   const handleEditar = (j) => {
     setForm({
       ...j,
+      // pg devuelve la fecha como timestamp ISO; el input date solo acepta YYYY-MM-DD
+      fechaNacimiento: j.fechaNacimiento ? String(j.fechaNacimiento).slice(0, 10) : '',
       categoriaId: String(j.categoriaId),
       crearAcceso: !!j.accesoPadre,
       accesoUsuario: j.accesoPadre || '',
