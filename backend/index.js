@@ -83,7 +83,9 @@ function verificarToken(req, res, next) {
         req.usuario = jwt.verify(header.split(' ')[1], JWT_SECRET);
         next();
     } catch {
-        return res.status(403).json({ error: 'Sesión expirada o token inválido.' });
+        // 401 (no 403): es un problema de autenticación, el frontend cierra sesión.
+        // Los 403 se reservan para denegar permisos con token válido.
+        return res.status(401).json({ error: 'Sesión expirada o token inválido.' });
     }
 }
 

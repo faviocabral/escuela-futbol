@@ -34,7 +34,12 @@ export const apiFetch = async (path, options = {}) => {
 
   const data = res.status !== 204 ? await res.json().catch(() => null) : null;
   if (!res.ok) {
-    if (res.status === 401 && !path.startsWith('/api/login')) {
+    // 401 = token ausente/vencido; también cubre el viejo 403 "Sesión expirada"
+    // del backend anterior (los 403 de permisos NO cierran sesión).
+    const sesionMuerta =
+      res.status === 401 ||
+      (res.status === 403 && /expirada|inv.lido/i.test(data?.error || ''));
+    if (sesionMuerta && !path.startsWith('/api/login')) {
       setToken(null);
       onSesionExpirada?.();
     }
