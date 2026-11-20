@@ -28,7 +28,7 @@ const ESTADO_LABEL = {
 const esVencida = (p) =>
   p.estado === 'pendiente' && p.vencimiento && p.vencimiento.slice(0, 10) < hoyLocal();
 
-export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar }) => {
+export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onConfirmar, onRechazar, onPagar }) => {
   const hoy = new Date();
   const [jugadorId, setJugadorId] = useState('');
   const [mes, setMes] = useState(hoy.getMonth() + 1);
@@ -42,6 +42,9 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
   const [filtroEstado, setFiltroEstado] = useState('');
 
   const [comprobanteVer, setComprobanteVer] = useState(null); // 'cargando' | { url }
+  // Modal "Registrar cobro": cuota pendiente + monto/método ingresados
+  const [cobro, setCobro] = useState(null); // { pago, monto, metodo }
+  const [cobrando, setCobrando] = useState(false);
 
   // Monto por defecto del formulario: el configurado para las cuotas
   useEffect(() => {
@@ -88,6 +91,26 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
     } catch (err) {
       setComprobanteVer(null);
       aviso(err.message, 'error');
+    }
+  };
+
+  const abrirCobro = (p) => {
+    const saldo = Number(p.monto) - (Number(p.montoPagado) || 0);
+    setCobro({ pago: p, monto: saldo > 0 ? saldo : p.monto, metodo: 'Efectivo' });
+  };
+
+  const registrarCobro = async () => {
+    const montoNum = Number(cobro.monto);
+    if (!montoNum || montoNum <= 0) return aviso('Indicá un monto válido.');
+    setCobrando(true);
+    try {
+      const p = await onPagar(cobro.pago.id, { monto: montoNum, metodo: cobro.metodo });
+      if (p) {
+        toast(p.estado === 'confirmado' ? 'Pago registrado — cuota saldada' : `Cobro parcial — saldo ${formatGs(Number(p.monto) - Number(p.montoPagado))}`);
+        setCobro(null);
+      }
+    } finally {
+      setCobrando(false);
     }
   };
 
@@ -281,8 +304,14 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                         <td className="small text-muted">
                           <div className="text-truncate" style={{ maxWidth: '200px' }}
                             title={`${p.nroComprobante ? `N° ${p.nroComprobante} · ` : ''}${p.remitente || ''} ${p.banco ? `(${p.banco})` : ''} · ${p.fechaPago}`}>
-                            {p.nroComprobante && <>N° {p.nroComprobante} · </>}{p.remitente || p.fechaPago}
+                            {p.nroComprobante && <>N° {p.nroComprobante} · </>}{p.remitente || p.fechaPago || p.detalle}
                           </div>
+                          {p.estado === 'pendiente' && Number(p.montoPagado) > 0 && (
+                            <div className="text-primary">Abonó {formatGs(p.montoPagado)} · saldo {formatGs(Number(p.monto) - Number(p.montoPagado))}</div>
+                          )}
+                          {p.estado === 'en_revision' && p.montoDeclarado != null && (
+                            <div className="text-warning-emphasis">Declarado {formatGs(p.montoDeclarado)}</div>
+                          )}
                         </td>
                         <td className="px-3 text-end">
                           {p.comprobanteUrl && (
@@ -290,10 +319,19 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
                               <i className="bi bi-image"></i>
                             </button>
                           )}
-                          {['pendiente', 'en_revision'].includes(p.estado) && (
+                          {p.estado === 'pendiente' && (
                             <button
                               className="btn btn-sm btn-success me-1"
-                              title={p.estado === 'en_revision' ? 'Confirmar pago' : 'Marcar cuota como pagada'}
+                              title="Registrar cobro"
+                              onClick={() => abrirCobro(p)}
+                            >
+                              <i className="bi bi-cash"></i>
+                            </button>
+                          )}
+                          {p.estado === 'en_revision' && (
+                            <button
+                              className="btn btn-sm btn-success me-1"
+                              title="Confirmar pago"
                               onClick={async () => { if (await onConfirmar(p.id)) toast('Pago confirmado'); }}
                             >
                               <i className="bi bi-check-lg"></i>
@@ -339,6 +377,61 @@ export const PagosView = ({ pagos, jugadores, categorias, onAdd, onDelete, onCon
           </div>
         </div>
       </div>
+
+      {/* Modal "Registrar cobro": monto + método; soporta pagos parciales */}
+      {cobro && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={() => !cobrando && setCobro(null)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header py-2">
+                <h6 className="modal-title mb-0"><i className="bi bi-cash me-2"></i>Registrar cobro</h6>
+                <button type="button" className="btn-close" onClick={() => setCobro(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="small text-muted mb-3">
+                  {jugadorNombre(cobro.pago.jugadorId)} — {MESES[cobro.pago.mes - 1]} {cobro.pago.anio}
+                  <br />
+                  Cuota <b>{formatGs(cobro.pago.monto)}</b>
+                  {Number(cobro.pago.montoPagado) > 0 && (
+                    <> · abonado {formatGs(cobro.pago.montoPagado)} · <b className="text-danger">saldo {formatGs(Number(cobro.pago.monto) - Number(cobro.pago.montoPagado))}</b></>
+                  )}
+                </div>
+                <div className="row g-2">
+                  <div className="col-7">
+                    <label className="form-label small fw-semibold text-secondary">Monto cobrado (Gs.)</label>
+                    <input type="number" className="form-control" autoFocus
+                      value={cobro.monto} min="1" step="1000"
+                      onChange={(e) => setCobro({ ...cobro, monto: e.target.value })} />
+                  </div>
+                  <div className="col-5">
+                    <label className="form-label small fw-semibold text-secondary">Método</label>
+                    <select className="form-select" value={cobro.metodo} onChange={(e) => setCobro({ ...cobro, metodo: e.target.value })}>
+                      <option>Efectivo</option>
+                      <option>Transferencia</option>
+                      <option>Tarjeta</option>
+                      <option>Otro</option>
+                    </select>
+                  </div>
+                </div>
+                {Number(cobro.monto) > 0 && Number(cobro.monto) < Number(cobro.pago.monto) - (Number(cobro.pago.montoPagado) || 0) && (
+                  <div className="alert alert-warning py-2 small mt-3 mb-0">
+                    <i className="bi bi-info-circle me-1"></i>
+                    Cobro parcial — la cuota quedará pendiente con saldo {formatGs(Number(cobro.pago.monto) - (Number(cobro.pago.montoPagado) || 0) - Number(cobro.monto))}.
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer py-2">
+                <button className="btn btn-sm btn-outline-secondary" onClick={() => setCobro(null)} disabled={cobrando}>Cancelar</button>
+                <button className="btn btn-sm btn-success" onClick={registrarCobro} disabled={cobrando}>
+                  {cobrando ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-check-lg me-1"></i>}
+                  Registrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal del comprobante: la imagen se ve sin abrir otra pestaña */}
       {comprobanteVer && (

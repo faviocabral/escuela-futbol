@@ -113,6 +113,8 @@ export const ReportesView = ({ jugadores, categorias, torneos, convocatorias, as
           'Mes': MESES[p.mes - 1] || p.mes,
           'Año': p.anio,
           'Monto': Number(p.monto) || 0,
+          'Pagado': Number(p.montoPagado) || 0,
+          'Saldo': Math.max(0, (Number(p.monto) || 0) - (Number(p.montoPagado) || 0)),
           'Estado': esVencida(p) ? 'Vencida' : (ESTADO_PAGO[p.estado] || p.estado),
           'Método': p.metodo || '—',
           'Registrado por': p.registradoPor === 'padre' ? 'Padre' : p.registradoPor === 'sistema' ? 'Sistema (cuota)' : 'Staff',

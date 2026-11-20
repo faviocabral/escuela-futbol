@@ -102,7 +102,11 @@ create table if not exists pagos (
   banco text,
   remitente text,
   vencimiento date, -- fecha límite de la cuota (vencida = pendiente + fecha pasada)
-  detalle text
+  detalle text,
+  -- Pagos parciales: monto = total de la cuota; abonado acumula cobros confirmados;
+  -- declarado = lo que afirma el comprobante mientras está en revisión
+  monto_pagado numeric(12,0) default 0,
+  monto_declarado numeric(12,0)
 );
 
 -- Un pago vigente por jugador/período; los rechazados no bloquean el reenvío

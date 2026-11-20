@@ -160,6 +160,8 @@ const pagoOut = (p) => ({
     registradoPor: p.registrado_por || 'staff', comprobanteUrl: p.comprobante_url || null,
     nroComprobante: p.nro_comprobante || null, banco: p.banco || null, remitente: p.remitente || null,
     vencimiento: p.vencimiento || null, detalle: p.detalle || null,
+    montoPagado: Number(p.monto_pagado) || 0,
+    montoDeclarado: p.monto_declarado != null ? Number(p.monto_declarado) : null,
 });
 const pagoIn = (p) => ({ jugador_id: p.jugadorId, mes: p.mes, anio: p.anio, monto: p.monto, metodo: p.metodo || null, fecha_pago: p.fechaPago || new Date() });
 
@@ -394,16 +396,26 @@ app.post('/api/pagos', ...staff, h(async (req, res) => {
             .whereNot('estado', 'rechazado')
             .first();
         if (existente) {
+            if (existente.estado === 'en_revision') {
+                return res.status(409).json({ error: 'Ese período tiene un comprobante en revisión: confirmalo o rechazalo primero.' });
+            }
+            if (existente.estado === 'confirmado') {
+                return res.status(409).json({ error: 'Ese período ya está pagado.' });
+            }
+            // Cuota pendiente: se acumula el abono (soporta pagos parciales)
+            const abonado = Number(datos.monto) || 0;
+            const total = (Number(existente.monto_pagado) || 0) + abonado;
             const [row] = await db('pagos').where({ id: existente.id }).update({
-                monto: datos.monto ?? existente.monto,
+                monto_pagado: total,
                 metodo: datos.metodo || 'Efectivo',
                 fecha_pago: datos.fecha_pago || new Date(),
-                estado: 'confirmado', registrado_por: 'staff',
+                estado: total >= Number(existente.monto) ? 'confirmado' : 'pendiente',
+                registrado_por: 'staff',
             }).returning('*');
             return res.json(pagoOut(row));
         }
         const [row] = await db('pagos')
-            .insert({ ...datos, estado: 'confirmado', registrado_por: 'staff' })
+            .insert({ ...datos, estado: 'confirmado', registrado_por: 'staff', monto_pagado: datos.monto })
             .returning('*');
         res.status(201).json(pagoOut(row));
     } catch (e) {
@@ -470,7 +482,7 @@ app.post('/api/cuotas/generar', ...staff, h(async (req, res) => {
             await db('pagos').insert({
                 jugador_id: j.id, mes: m, anio: anioNum, monto,
                 metodo: null, fecha_pago: venc, vencimiento: venc,
-                estado: 'pendiente', registrado_por: 'sistema', detalle: 'Cuota mensual',
+                estado: 'pendiente', registrado_por: 'sistema', detalle: 'Cuota mensual', monto_pagado: 0,
             });
             generadas++;
         }
@@ -478,17 +490,46 @@ app.post('/api/cuotas/generar', ...staff, h(async (req, res) => {
     res.json({ generadas, saltadas, jugadores: jugadores.length });
 }));
 
-// El contador confirma un pago subido por el padre (puede corregir el monto)
+// El staff registra un cobro sobre una cuota pendiente (total o parcial).
+// Acumula en monto_pagado; confirma cuando cubre el total de la cuota.
+app.put('/api/pagos/:id/pagar', ...staff, h(async (req, res) => {
+    const abonado = Number(req.body?.monto);
+    if (!abonado || abonado <= 0) return res.status(400).json({ error: 'Indicá un monto válido.' });
+    const pago = await db('pagos').where({ id: req.params.id }).first();
+    if (!pago) return res.status(404).json({ error: 'Pago no encontrado.' });
+    if (pago.estado === 'confirmado') return res.status(409).json({ error: 'Esa cuota ya está pagada.' });
+    if (pago.estado === 'en_revision') return res.status(409).json({ error: 'Hay un comprobante en revisión: confirmalo o rechazalo primero.' });
+    const total = (Number(pago.monto_pagado) || 0) + abonado;
+    const [row] = await db('pagos').where({ id: pago.id }).update({
+        monto_pagado: total,
+        metodo: req.body.metodo || 'Efectivo',
+        fecha_pago: new Date(),
+        estado: total >= Number(pago.monto) ? 'confirmado' : 'pendiente',
+        registrado_por: 'staff',
+    }).returning('*');
+    res.json(pagoOut(row));
+}));
+
+// El contador confirma el comprobante del padre: suma lo declarado (o la
+// corrección body.monto) al abonado; confirma solo si cubre la cuota.
 app.put('/api/pagos/:id/confirmar', ...staff, h(async (req, res) => {
-    const datos = { estado: 'confirmado' };
-    if (req.body?.monto != null) datos.monto = req.body.monto;
-    const [row] = await db('pagos').where({ id: req.params.id }).update(datos).returning('*');
-    if (!row) return res.status(404).json({ error: 'Pago no encontrado.' });
+    const pago = await db('pagos').where({ id: req.params.id }).first();
+    if (!pago) return res.status(404).json({ error: 'Pago no encontrado.' });
+    const abonado = req.body?.monto != null ? Number(req.body.monto)
+        : (Number(pago.monto_declarado) || Number(pago.monto));
+    const total = (Number(pago.monto_pagado) || 0) + abonado;
+    const [row] = await db('pagos').where({ id: pago.id }).update({
+        monto_pagado: total,
+        monto_declarado: null,
+        fecha_pago: pago.fecha_pago || new Date(),
+        estado: total >= Number(pago.monto) ? 'confirmado' : 'pendiente',
+    }).returning('*');
     res.json(pagoOut(row));
 }));
 
 app.put('/api/pagos/:id/rechazar', ...staff, h(async (req, res) => {
-    const [row] = await db('pagos').where({ id: req.params.id }).update({ estado: 'rechazado' }).returning('*');
+    const [row] = await db('pagos').where({ id: req.params.id })
+        .update({ estado: 'rechazado', monto_declarado: null }).returning('*');
     if (!row) return res.status(404).json({ error: 'Pago no encontrado.' });
     res.json(pagoOut(row));
 }));
@@ -701,8 +742,12 @@ app.post('/api/padre/pago', ...padre, upload.single('comprobante'), h(async (req
         if (existente && existente.estado !== 'pendiente') {
             return res.status(409).json({ error: 'Ese período ya está pagado o en revisión.' });
         }
+        // Lo que declara el comprobante (OCR o ingresado); la cuota conserva su total
+        const declarado = extraido?.monto || Number(monto)
+            || (existente ? Number(existente.monto) - (Number(existente.monto_pagado) || 0) : 0);
         const datos = {
-            monto: extraido?.monto || Number(monto) || existente?.monto || 0,
+            monto: existente?.monto ?? declarado,
+            monto_declarado: declarado,
             metodo: 'Transferencia',
             fecha_pago: extraido?.fecha || new Date().toISOString().slice(0, 10),
             estado: 'en_revision',

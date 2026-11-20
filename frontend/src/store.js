@@ -117,6 +117,15 @@ export const confirmarAsistencia = (planillaId) =>
     return true;
   });
 
+// Registra un cobro (total o parcial) sobre una cuota pendiente
+export const pagarCuota = (id, datos) =>
+  ejec(async () => {
+    const actualizado = await apiFetch(`/api/pagos/${id}/pagar`, { method: 'PUT', body: JSON.stringify(datos) });
+    state = { ...state, pagos: state.pagos.map((p) => (p.id === id ? actualizado : p)) };
+    emit();
+    return actualizado;
+  });
+
 // Confirma o rechaza un pago pendiente (el padre subió el comprobante)
 export const cambiarEstadoPago = (id, accion) =>
   ejec(async () => {

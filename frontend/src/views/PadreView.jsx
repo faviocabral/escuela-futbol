@@ -293,6 +293,14 @@ const TabPagos = ({ jugador, pagos, onPagoSubido }) => {
                   {p.nroComprobante && <>N° {p.nroComprobante} · </>}{p.banco}
                 </div>
               )}
+              {p.estado === 'pendiente' && Number(p.montoPagado) > 0 && (
+                <div className="small text-primary mt-1">
+                  Abonaste {formatGs(p.montoPagado)} — saldo {formatGs(Number(p.monto) - Number(p.montoPagado))}
+                </div>
+              )}
+              {p.estado === 'en_revision' && p.montoDeclarado != null && (
+                <div className="small text-muted mt-1">Declarado {formatGs(p.montoDeclarado)}</div>
+              )}
               {p.comprobanteUrl && (
                 <button className="btn btn-link btn-sm p-0 small" onClick={() => verComprobante(p.id)}>
                   <i className="bi bi-image me-1"></i>Ver comprobante

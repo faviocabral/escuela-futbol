@@ -15,7 +15,7 @@ const ReportesView = React.lazy(() => import('./ReportesView').then((m) => ({ de
 import {
   useStore, useCargando, cargarDatos,
   crearEn, actualizarEn, eliminarEn,
-  guardarConvocatoria, guardarAsistencia, confirmarAsistencia, cambiarEstadoPago,
+  guardarConvocatoria, guardarAsistencia, confirmarAsistencia, cambiarEstadoPago, pagarCuota,
 } from '../store';
 import { aviso } from '../utils/notify';
 
@@ -136,6 +136,7 @@ export default function Dashboard({ usuario, onLogout }) {
             onDelete={eliminarEn('pagos', '/api/pagos')}
             onConfirmar={(id) => cambiarEstadoPago(id, 'confirmar')}
             onRechazar={(id) => cambiarEstadoPago(id, 'rechazar')}
+            onPagar={pagarCuota}
           />
         );
       case 'reportes':
